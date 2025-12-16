@@ -1,36 +1,37 @@
 package net.axes.naturalregrowth;
 
-import java.util.List;
-
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.common.ModConfigSpec;
+import org.apache.commons.lang3.tuple.Pair;
 
-// An example config class. This is not required, but it's a good idea to have one to keep your config organized.
-// Demonstrates how to use Neo's config APIs
 public class Config {
-    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
+    public static final ModConfigSpec SPEC;
+    public static final Common COMMON;
 
-    public static final ModConfigSpec.BooleanValue LOG_DIRT_BLOCK = BUILDER
-            .comment("Whether to log the dirt block on common setup")
-            .define("logDirtBlock", true);
+    public static class Common {
+        public final ModConfigSpec.DoubleValue regrowthChance;
+        public final ModConfigSpec.BooleanValue dropLogItems;
 
-    public static final ModConfigSpec.IntValue MAGIC_NUMBER = BUILDER
-            .comment("A magic number")
-            .defineInRange("magicNumber", 42, 0, Integer.MAX_VALUE);
+        public Common(ModConfigSpec.Builder builder) {
+            builder.push("general");
 
-    public static final ModConfigSpec.ConfigValue<String> MAGIC_NUMBER_INTRODUCTION = BUILDER
-            .comment("What you want the introduction message to be for the magic number")
-            .define("magicNumberIntroduction", "The magic number is... ");
+            regrowthChance = builder
+                    .comment("The chance (0.0 to 1.0) that a stump will regrow into a sapling per random tick.",
+                            "Higher numbers = Faster regrowth. Default: 0.03 (3%). Average 38 minutes for a tree to grow back")
+                    .defineInRange("regrowthChance", 0.03, 0.0, 1.0);
 
-    // a list of strings that are treated as resource locations for items
-    public static final ModConfigSpec.ConfigValue<List<? extends String>> ITEM_STRINGS = BUILDER
-            .comment("A list of items to log on common setup.")
-            .defineListAllowEmpty("items", List.of("minecraft:iron_ingot"), () -> "", Config::validateItemName);
+            dropLogItems = builder
+                    .comment("If true, logs destroyed by the storm or falling trees will drop wood items.",
+                            "WARNING: Setting this to true may cause significant lag during large storms.",
+                            "Default: false")
+                    .define("dropLogItems", false);
 
-    static final ModConfigSpec SPEC = BUILDER.build();
+            builder.pop();
+        }
+    }
 
-    private static boolean validateItemName(final Object obj) {
-        return obj instanceof String itemName && BuiltInRegistries.ITEM.containsKey(ResourceLocation.parse(itemName));
+    static {
+        Pair<Common, ModConfigSpec> specPair = new ModConfigSpec.Builder().configure(Common::new);
+        SPEC = specPair.getRight();
+        COMMON = specPair.getLeft();
     }
 }

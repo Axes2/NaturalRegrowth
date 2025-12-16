@@ -13,6 +13,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import net.axes.naturalregrowth.Config;
 
 @Mixin(Storm.class)
 public class TornadoDestructionMixin {
@@ -86,8 +87,12 @@ public class TornadoDestructionMixin {
     private void breakTrunk(Level level, BlockPos startPos) {
         BlockPos cursor = startPos;
         int safety = 0;
+
+        // Check Config
+        boolean shouldDrop = Config.COMMON.dropLogItems.get();
+
         while (level.getBlockState(cursor).is(BlockTags.LOGS) && safety < 30) {
-            level.destroyBlock(cursor, false);
+            level.destroyBlock(cursor, shouldDrop);
             cursor = cursor.above();
             safety++;
         }
