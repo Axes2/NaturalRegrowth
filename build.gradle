@@ -112,7 +112,7 @@ configurations {
 }
 
 dependencies {
-    implementation files('libs/pmweather-0.13.10-1.21.1-alpha.jar')
+    implementation files('libs/pmweather-0.15.3-1.21.1-alpha.jar')
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"

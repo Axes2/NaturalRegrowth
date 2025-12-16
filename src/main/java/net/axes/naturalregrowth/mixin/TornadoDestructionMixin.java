@@ -1,6 +1,7 @@
 package net.axes.naturalregrowth.mixin;
 
 import dev.protomanly.pmweather.weather.Storm;
+import net.axes.naturalregrowth.Config;
 import net.axes.naturalregrowth.ModBlocks;
 import net.axes.naturalregrowth.block.RegrowingStumpBlock;
 import net.minecraft.core.BlockPos;
@@ -13,12 +14,13 @@ import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
-import net.axes.naturalregrowth.Config;
 
 @Mixin(Storm.class)
 public class TornadoDestructionMixin {
 
-    @Redirect(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;removeBlock(Lnet/minecraft/core/BlockPos;Z)Z"))
+    // CHANGED: method = "tick" -> method = "doDamage"
+    // This connects the Mixin to the new destruction logic in PMWeather 0.15.3
+    @Redirect(method = "doDamage", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;removeBlock(Lnet/minecraft/core/BlockPos;Z)Z"))
     public boolean onStormRemoveBlock(Level level, BlockPos pos, boolean isMoving) {
 
         BlockState state = level.getBlockState(pos);
@@ -88,7 +90,7 @@ public class TornadoDestructionMixin {
         BlockPos cursor = startPos;
         int safety = 0;
 
-        // Check Config
+        // Use Config to determine if we drop items
         boolean shouldDrop = Config.COMMON.dropLogItems.get();
 
         while (level.getBlockState(cursor).is(BlockTags.LOGS) && safety < 30) {
