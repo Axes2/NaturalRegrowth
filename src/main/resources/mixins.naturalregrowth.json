@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.axes.naturalregrowth.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "TornadoDestructionMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
