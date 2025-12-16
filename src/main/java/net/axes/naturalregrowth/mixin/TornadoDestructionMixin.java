@@ -22,60 +22,89 @@ public class TornadoDestructionMixin {
 
         BlockState state = level.getBlockState(pos);
 
-        // --- NEW: INVINCIBILITY CHECK ---
-        // If the storm tries to eat our special stump, we stop it immediately.
-        // returning 'false' means "The block was NOT removed."
+        // 1. INVINCIBILITY: Save our stumps!
         if (state.getBlock() instanceof RegrowingStumpBlock) {
             return false;
         }
-        // --------------------------------
 
-        // Optimization: Only run regeneration logic on logs
+        // 2. LOG LOGIC: Direct Hits (Center of Storm)
         if (state.is(BlockTags.LOGS)) {
-
-            // 1. Quick "Vertical Scan" to see if this log has leaves on top
             if (isNaturalTree(level, pos)) {
-
-                // 2. Identify the base of the tree
                 BlockPos stumpPos = findStump(level, pos);
 
-                // 3. Trigger Regeneration Logic (Place Stump)
-                handleTreeRegeneration(level, stumpPos, state);
+                // If the base is already infected, let the storm destroy this specific log block
+                if (level.getBlockState(stumpPos).getBlock() instanceof RegrowingStumpBlock) {
+                    return level.removeBlock(pos, isMoving);
+                }
 
-                // Return true because we handled the removal (by turning it into a stump)
+                // Place the stump and "Vaporize" the trunk immediately (Direct Hit Logic)
+                infectTreeBase(level, stumpPos, state);
+                breakTrunk(level, stumpPos.above()); // Clean up immediately for direct hits
+
                 return true;
             }
         }
 
-        // Default behavior for everything else (let the storm destroy it)
+        // 3. LEAF LOGIC: Glancing Blows (Edge of Storm)
+        // If the storm eats a leaf, check if it's attached to a log
+        if (state.is(BlockTags.LEAVES)) {
+            BlockPos below = pos.below();
+            BlockState stateBelow = level.getBlockState(below);
+
+            // If we just exposed a log, this tree is "dying"
+            if (stateBelow.is(BlockTags.LOGS)) {
+
+                BlockPos stumpPos = findStump(level, below);
+                BlockState stumpState = level.getBlockState(stumpPos);
+
+                // Only infect if it hasn't been infected yet
+                if (!(stumpState.getBlock() instanceof RegrowingStumpBlock)) {
+                    // We ONLY place the stump. We do NOT break the trunk.
+                    // The tree stays standing (with a scarred base) until it regrows later.
+                    infectTreeBase(level, stumpPos, stateBelow);
+                }
+            }
+        }
+
         return level.removeBlock(pos, isMoving);
     }
 
-    // New "Vertical Trace" Scanner (Optimized for Performance)
+    // Helper to swap the base block for a Stump
+    private void infectTreeBase(Level level, BlockPos stumpPos, BlockState originalLog) {
+        if (level.getBlockState(stumpPos.below()).is(BlockTags.DIRT)) {
+            int typeId = getTypeIdForLog(originalLog);
+
+            BlockState stumpState = ModBlocks.REGROWING_STUMP.get()
+                    .defaultBlockState()
+                    .setValue(RegrowingStumpBlock.TREE_TYPE, typeId);
+
+            level.setBlock(stumpPos, stumpState, 3);
+        }
+    }
+
+    // Helper used ONLY for Direct Hits (Center of storm)
+    private void breakTrunk(Level level, BlockPos startPos) {
+        BlockPos cursor = startPos;
+        int safety = 0;
+        while (level.getBlockState(cursor).is(BlockTags.LOGS) && safety < 30) {
+            level.destroyBlock(cursor, false);
+            cursor = cursor.above();
+            safety++;
+        }
+    }
+
     private boolean isNaturalTree(Level level, BlockPos pos) {
         BlockPos cursor = pos;
         int height = 0;
-
-        // Trace UP until we find the top of the log column
         while (level.getBlockState(cursor.above()).is(BlockTags.LOGS) && height < 20) {
             cursor = cursor.above();
             height++;
         }
-
-        // Now 'cursor' is the highest log. Check the block directly ABOVE it.
         BlockState topBlock = level.getBlockState(cursor.above());
-
-        // A. Is it leaves? (Natural)
         if (topBlock.is(BlockTags.LEAVES)) {
             return !topBlock.getValue(LeavesBlock.PERSISTENT);
         }
-
-        // B. Is it a house roof? (Man-made)
-        if (topBlock.is(Blocks.OAK_PLANKS) || topBlock.is(Blocks.COBBLESTONE) || topBlock.is(Blocks.STONE_BRICKS)) {
-            return false;
-        }
-
-        // C. If top is Air (leaves stripped?), check immediate neighbors of the top log
+        // Fallback: If top is air, check neighbors
         if (topBlock.isAir()) {
             for (int x = -1; x <= 1; x++) {
                 for (int z = -1; z <= 1; z++) {
@@ -87,51 +116,17 @@ public class TornadoDestructionMixin {
                 }
             }
         }
-
         return false;
     }
 
     private BlockPos findStump(Level level, BlockPos pos) {
         BlockPos cursor = pos;
         int safety = 0;
-        // Scan DOWN until we hit dirt/grass
         while (level.getBlockState(cursor.below()).is(BlockTags.LOGS) && safety < 30) {
             cursor = cursor.below();
             safety++;
         }
         return cursor;
-    }
-
-    private void handleTreeRegeneration(Level level, BlockPos stumpPos, BlockState destroyedLog) {
-        // Check if we found dirt below the stump
-        if (level.getBlockState(stumpPos.below()).is(BlockTags.DIRT)) {
-
-            // 1. Determine the tree type ID (0=Oak, 1=Spruce, etc.)
-            int typeId = getTypeIdForLog(destroyedLog);
-
-            // 2. Create the Stump Block State with that ID
-            BlockState stumpState = ModBlocks.REGROWING_STUMP.get()
-                    .defaultBlockState()
-                    .setValue(RegrowingStumpBlock.TREE_TYPE, typeId);
-
-            // 3. Place the Stump (Replacing the old log block at the base)
-            level.setBlock(stumpPos, stumpState, 3);
-
-            // 4. "Vaporize" the rest of the tree (No items = No lag)
-            breakTrunk(level, stumpPos.above());
-        }
-    }
-
-    private void breakTrunk(Level level, BlockPos startPos) {
-        BlockPos cursor = startPos;
-        int safety = 0;
-        // Break logs going up.
-        // OPTIMIZED: false = "Vaporize" (No items dropped, drastically reduces lag)
-        while (level.getBlockState(cursor).is(BlockTags.LOGS) && safety < 30) {
-            level.destroyBlock(cursor, false);
-            cursor = cursor.above();
-            safety++;
-        }
     }
 
     private int getTypeIdForLog(BlockState logState) {
@@ -143,7 +138,6 @@ public class TornadoDestructionMixin {
         if (log == Blocks.DARK_OAK_LOG) return 5;
         if (log == Blocks.CHERRY_LOG) return 6;
         if (log == Blocks.MANGROVE_LOG) return 7;
-        // Default (Oak) is 0
         return 0;
     }
 }

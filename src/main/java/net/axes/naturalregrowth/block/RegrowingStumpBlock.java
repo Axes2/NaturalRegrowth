@@ -2,7 +2,9 @@ package net.axes.naturalregrowth.block;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RotatedPillarBlock;
@@ -13,39 +15,53 @@ import net.minecraft.world.level.block.state.properties.IntegerProperty;
 
 public class RegrowingStumpBlock extends RotatedPillarBlock {
 
-    // We use a number to remember which tree type this was (0=Oak, 1=Spruce, etc.)
-    public static final IntegerProperty TREE_TYPE = IntegerProperty.create("type", 0, 8);
+    public static final IntegerProperty TREE_TYPE = IntegerProperty.create("type", 0, 7);
 
     public RegrowingStumpBlock() {
-        // Copy the properties of a regular Oak Log (Strength, Sound, Flammability)
         super(BlockBehaviour.Properties.ofFullCopy(Blocks.OAK_LOG).randomTicks());
         this.registerDefaultState(this.stateDefinition.any().setValue(TREE_TYPE, 0));
     }
 
-    // 1. Tell the block to accept "Random Ticks" (like crops growing)
     @Override
     public boolean isRandomlyTicking(BlockState state) {
         return true;
     }
 
-    // 2. The Logic: What happens when it ticks?
     @Override
     public void randomTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
-        // 10% chance per tick to "heal" (adjust this to make it faster/slower)
+        // 10% chance to regrow
         if (random.nextFloat() < 0.10f) {
-            BlockState sapling = getSaplingFromType(state.getValue(TREE_TYPE));
-            level.setBlock(pos, sapling, 3);
+            regrow(level, pos, state);
         }
     }
 
-    // 3. Register the property so the game knows to save it
+    // New helper method to handle the full regrowth process
+    public void regrow(ServerLevel level, BlockPos pos, BlockState state) {
+        // 1. Clean up the dead trunk above
+        breakTrunkAbove(level, pos.above());
+
+        // 2. Plant the sapling
+        BlockState sapling = getSaplingFromType(state.getValue(TREE_TYPE));
+        level.setBlock(pos, sapling, 3);
+    }
+
+    private void breakTrunkAbove(Level level, BlockPos startPos) {
+        BlockPos cursor = startPos;
+        int safety = 0;
+        // Vaporize logs directly above the stump
+        while (level.getBlockState(cursor).is(BlockTags.LOGS) && safety < 30) {
+            level.destroyBlock(cursor, false);
+            cursor = cursor.above();
+            safety++;
+        }
+    }
+
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         super.createBlockStateDefinition(builder);
         builder.add(TREE_TYPE);
     }
 
-    // Helper: Convert our Number back into a Sapling
     private BlockState getSaplingFromType(int type) {
         switch (type) {
             case 1: return Blocks.SPRUCE_SAPLING.defaultBlockState();
@@ -55,7 +71,7 @@ public class RegrowingStumpBlock extends RotatedPillarBlock {
             case 5: return Blocks.DARK_OAK_SAPLING.defaultBlockState();
             case 6: return Blocks.CHERRY_SAPLING.defaultBlockState();
             case 7: return Blocks.MANGROVE_PROPAGULE.defaultBlockState();
-            default: return Blocks.OAK_SAPLING.defaultBlockState(); // Case 0
+            default: return Blocks.OAK_SAPLING.defaultBlockState();
         }
     }
 }
