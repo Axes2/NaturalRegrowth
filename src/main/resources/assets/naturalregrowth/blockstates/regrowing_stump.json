@@ -1,0 +1,35 @@
+{
+  "variants": {
+    "axis=y,type=0": { "model": "minecraft:block/stripped_oak_log" },
+    "axis=z,type=0": { "model": "minecraft:block/stripped_oak_log", "x": 90 },
+    "axis=x,type=0": { "model": "minecraft:block/stripped_oak_log", "x": 90, "y": 90 },
+
+    "axis=y,type=1": { "model": "minecraft:block/stripped_spruce_log" },
+    "axis=z,type=1": { "model": "minecraft:block/stripped_spruce_log", "x": 90 },
+    "axis=x,type=1": { "model": "minecraft:block/stripped_spruce_log", "x": 90, "y": 90 },
+
+    "axis=y,type=2": { "model": "minecraft:block/stripped_birch_log" },
+    "axis=z,type=2": { "model": "minecraft:block/stripped_birch_log", "x": 90 },
+    "axis=x,type=2": { "model": "minecraft:block/stripped_birch_log", "x": 90, "y": 90 },
+
+    "axis=y,type=3": { "model": "minecraft:block/stripped_jungle_log" },
+    "axis=z,type=3": { "model": "minecraft:block/stripped_jungle_log", "x": 90 },
+    "axis=x,type=3": { "model": "minecraft:block/stripped_jungle_log", "x": 90, "y": 90 },
+
+    "axis=y,type=4": { "model": "minecraft:block/stripped_acacia_log" },
+    "axis=z,type=4": { "model": "minecraft:block/stripped_acacia_log", "x": 90 },
+    "axis=x,type=4": { "model": "minecraft:block/stripped_acacia_log", "x": 90, "y": 90 },
+
+    "axis=y,type=5": { "model": "minecraft:block/stripped_dark_oak_log" },
+    "axis=z,type=5": { "model": "minecraft:block/stripped_dark_oak_log", "x": 90 },
+    "axis=x,type=5": { "model": "minecraft:block/stripped_dark_oak_log", "x": 90, "y": 90 },
+
+    "axis=y,type=6": { "model": "minecraft:block/stripped_cherry_log" },
+    "axis=z,type=6": { "model": "minecraft:block/stripped_cherry_log", "x": 90 },
+    "axis=x,type=6": { "model": "minecraft:block/stripped_cherry_log", "x": 90, "y": 90 },
+
+    "axis=y,type=7": { "model": "minecraft:block/stripped_mangrove_log" },
+    "axis=z,type=7": { "model": "minecraft:block/stripped_mangrove_log", "x": 90 },
+    "axis=x,type=7": { "model": "minecraft:block/stripped_mangrove_log", "x": 90, "y": 90 }
+  }
+}
