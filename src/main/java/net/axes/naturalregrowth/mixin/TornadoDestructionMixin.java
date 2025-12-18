@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.ItemAbilities;
@@ -145,9 +146,16 @@ public class TornadoDestructionMixin {
         ResourceLocation logId = BuiltInRegistries.BLOCK.getKey(logState.getBlock());
         String namespace = logId.getNamespace();
         String path = logId.getPath();
+
+        // FIX 2: Clean the name. If it is "stripped_larch_log", remove "stripped_" first.
+        path = path.replace("stripped_", "");
+
+        // Now guess the sapling
         String saplingPath = path.replace("_log", "_sapling").replace("_wood", "_sapling");
 
-        if (!saplingPath.endsWith("_sapling")) saplingPath = saplingPath + "_sapling";
+        if (!saplingPath.endsWith("_sapling")) {
+            saplingPath = saplingPath + "_sapling";
+        }
 
         ResourceLocation saplingId = ResourceLocation.fromNamespaceAndPath(namespace, saplingPath);
         return BuiltInRegistries.BLOCK.getOptional(saplingId)
@@ -157,14 +165,46 @@ public class TornadoDestructionMixin {
 
 
     private BlockState getStrippedLog(Level level, BlockPos pos, BlockState originalLog) {
+        // DEBUG
+        String logName = BuiltInRegistries.BLOCK.getKey(originalLog.getBlock()).toString();
+        // System.out.println("[NATURAL REGROWTH DEBUG] Processing Log: " + logName);
+
+        // Return if already stripped
+        if (logName.contains("stripped")) {
+            // System.out.println(" -> Already stripped. Using as-is.");
+            return originalLog;
+        }
+
+        // (Simulate Axe)
         if (level instanceof ServerLevel serverLevel) {
             var fakePlayer = FakePlayerFactory.getMinecraft(serverLevel);
             ItemStack axe = new ItemStack(Items.IRON_AXE);
-            Vec3 hitPos = Vec3.atCenterOf(pos).relative(Direction.UP, 0.5);
-            UseOnContext context = new UseOnContext(level, fakePlayer, InteractionHand.MAIN_HAND, axe, new BlockHitResult(hitPos, Direction.UP, pos, false));
+
+            // Aim at the center to avoid snow/vines
+            Vec3 hitPos = Vec3.atCenterOf(pos);
+
+            UseOnContext context = new UseOnContext(
+                    level,
+                    fakePlayer,
+                    InteractionHand.MAIN_HAND,
+                    axe,
+                    new BlockHitResult(hitPos, Direction.UP, pos, false)
+            );
+
             BlockState stripped = originalLog.getToolModifiedState(context, ItemAbilities.AXE_STRIP, true);
-            if (stripped != null) return stripped;
+            if (stripped != null) {
+                return stripped;
+            }
         }
+
+        // 3. Try "Smart Guess" Way
+        Block guessedBlock = tryGuessStrippedLog(originalLog.getBlock());
+        if (guessedBlock != null) {
+            return guessedBlock.defaultBlockState();
+        }
+
+        // 4. Fail
+        // System.out.println(" -> FALLBACK TRIGGERED: Returning Stripped Oak");
         return Blocks.STRIPPED_OAK_WOOD.defaultBlockState();
     }
 

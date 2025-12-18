@@ -17,7 +17,10 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
 import org.jetbrains.annotations.Nullable;
-
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import java.util.Collections;
+import java.util.List;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -51,6 +54,19 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
             return new ItemStack(stump.getMimicState().getBlock());
         }
         return new ItemStack(net.minecraft.world.level.block.Blocks.STRIPPED_OAK_WOOD);
+    }
+    @Override
+    public List<ItemStack> getDrops(BlockState state, LootParams.Builder params) {
+        // 1. Get the Block Entity involved in this break event
+        BlockEntity be = params.getOptionalParameter(LootContextParams.BLOCK_ENTITY);
+
+        if (be instanceof RegrowingStumpBlockEntity stump) {
+            // 2. Drop the "Mimic" block (e.g. Stripped Mahogany Log)
+            return List.of(new ItemStack(stump.getMimicState().getBlock()));
+        }
+
+        // 3. Fallback (Safe default)
+        return List.of(new ItemStack(net.minecraft.world.level.block.Blocks.STRIPPED_OAK_LOG));
     }
 
     // --- THE REGROWTH LOGIC ---
