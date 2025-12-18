@@ -20,10 +20,20 @@ public class RegrowingStumpBlockEntity extends BlockEntity {
     // DEFAULT VALUES: If we forget who we are, act like Oak.
     private BlockState mimicState = Blocks.STRIPPED_OAK_WOOD.defaultBlockState();
     private BlockState futureSapling = Blocks.OAK_SAPLING.defaultBlockState();
+    private long creationTime = 0L;
 
     public RegrowingStumpBlockEntity(BlockPos pos, BlockState blockState) {
         // We reference the registry object here (created in Step 2)
         super(ModBlocks.REGROWING_STUMP_BE.get(), pos, blockState);
+    }
+
+    public void setCreationTime(long time) {
+        this.creationTime = time;
+        this.setChanged();
+    }
+
+    public long getCreationTime() {
+        return creationTime;
     }
 
     // --- 1. DATA MANAGEMENT ---
@@ -54,6 +64,7 @@ public class RegrowingStumpBlockEntity extends BlockEntity {
         super.saveAdditional(tag, registries);
         tag.put("MimicState", NbtUtils.writeBlockState(mimicState));
         tag.put("FutureSapling", NbtUtils.writeBlockState(futureSapling));
+        tag.putLong("CreationTime", creationTime);
     }
 
     // This runs when you load the world. It reads the identity back from the file.
@@ -68,6 +79,9 @@ public class RegrowingStumpBlockEntity extends BlockEntity {
         if (tag.contains("FutureSapling")) {
             // Fix: Same here
             this.futureSapling = NbtUtils.readBlockState(registries.lookupOrThrow(Registries.BLOCK), tag.getCompound("FutureSapling"));
+        }
+        if (tag.contains("CreationTime")) {
+            this.creationTime = tag.getLong("CreationTime"); // Load it!
         }
     }
 

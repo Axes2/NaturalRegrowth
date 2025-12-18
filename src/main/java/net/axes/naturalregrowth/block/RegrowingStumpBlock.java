@@ -75,21 +75,25 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
     public void randomTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
         if (level.isClientSide) return;
 
-        // 1. Config Chance
-        if (random.nextFloat() > Config.COMMON.regrowthChance.get()) {
-            return;
-        }
-
-        // 2. Get the Brain
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof RegrowingStumpBlockEntity stump) {
 
-            // 3. NUKE THE OLD TREE
-            // Before we turn into a sapling, we must clear the space above us.
-            // Otherwise, the sapling will suffocate or look weird under a floating log.
-            destroyTreeFloodFill(level, pos.above());
+            // CHECK 1: Are we old enough yet?
+            // If the delay is 5 minutes, and we are only 2 minutes old, STOP HERE.
+            long age = level.getGameTime() - stump.getCreationTime();
+            if (age < Config.COMMON.regrowthDelay.get()) {
+                return;
+            }
 
-            // 4. BECOME THE SAPLING
+            // CHECK 2: The Lottery (Random Chance)
+            // Even if we are old enough, we still have to roll the dice.
+            // This ensures the forest heals gradually, not all at once.
+            if (random.nextFloat() > Config.COMMON.regrowthChance.get()) {
+                return;
+            }
+
+            // If both passed, Grow!
+            destroyTreeFloodFill(level, pos.above());
             BlockState saplingToGrow = stump.getFutureSapling();
             level.setBlock(pos, saplingToGrow, 3);
         }

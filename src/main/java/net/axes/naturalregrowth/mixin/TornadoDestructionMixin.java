@@ -136,6 +136,7 @@ public class TornadoDestructionMixin {
             BlockEntity be = level.getBlockEntity(stumpPos);
             if (be instanceof RegrowingStumpBlockEntity stump) {
                 stump.setMimic(disguise, sapling);
+                stump.setCreationTime(level.getGameTime());
             }
 
 
