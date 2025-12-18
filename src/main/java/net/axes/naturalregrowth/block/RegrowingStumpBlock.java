@@ -4,20 +4,25 @@ import net.axes.naturalregrowth.Config;
 import net.axes.naturalregrowth.block.entity.RegrowingStumpBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.Level;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.MapColor;
 import org.jetbrains.annotations.Nullable;
-import net.minecraft.world.level.block.RenderShape;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.LevelReader;
-// CHANGE 1: We implement "EntityBlock" to attach the Block Entity
+
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.Set;
+
 public class RegrowingStumpBlock extends Block implements EntityBlock {
 
     public RegrowingStumpBlock() {
@@ -25,50 +30,98 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
                 .mapColor(MapColor.WOOD)
                 .strength(2.0f)
                 .sound(SoundType.WOOD)
-                .noOcclusion() // FIX 1: Let light pass through!
+                .noOcclusion() // Fixes the lighting/shadow issue
                 .randomTicks());
     }
 
-    // CHANGE 2: Create the "Brain" when placed
     @Nullable
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new RegrowingStumpBlockEntity(pos, state);
     }
 
-    // CHANGE 3: The New Growth Logic
+    @Override
+    protected RenderShape getRenderShape(BlockState state) {
+        return RenderShape.ENTITYBLOCK_ANIMATED;
+    }
+
+    @Override
+    public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state) {
+        if (level.getBlockEntity(pos) instanceof RegrowingStumpBlockEntity stump) {
+            return new ItemStack(stump.getMimicState().getBlock());
+        }
+        return new ItemStack(net.minecraft.world.level.block.Blocks.STRIPPED_OAK_WOOD);
+    }
+
+    // --- THE REGROWTH LOGIC ---
+
     @Override
     public void randomTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
         if (level.isClientSide) return;
 
-        // check config chance
+        // 1. Config Chance
         if (random.nextFloat() > Config.COMMON.regrowthChance.get()) {
             return;
         }
 
-        // Get our Block Entity
+        // 2. Get the Brain
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof RegrowingStumpBlockEntity stump) {
 
-            // ASK THE BRAIN: "What should I turn into?"
-            BlockState saplingToGrow = stump.getFutureSapling();
+            // 3. NUKE THE OLD TREE
+            // Before we turn into a sapling, we must clear the space above us.
+            // Otherwise, the sapling will suffocate or look weird under a floating log.
+            destroyTreeFloodFill(level, pos.above());
 
-            // Turn into that sapling
+            // 4. BECOME THE SAPLING
+            BlockState saplingToGrow = stump.getFutureSapling();
             level.setBlock(pos, saplingToGrow, 3);
         }
     }
-    @Override
-    public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state) {
-        // Get the "Brain"
-        if (level.getBlockEntity(pos) instanceof RegrowingStumpBlockEntity stump) {
-            // Give the player the block it is mimicking (e.g., Stripped Mahogany)
-            return new ItemStack(stump.getMimicState().getBlock());
+
+    // --- HELPER METHODS ---
+
+    private void destroyTreeFloodFill(ServerLevel level, BlockPos startPos) {
+        int maxLogs = 300;
+        int currentLogs = 0;
+        boolean shouldDrop = Config.COMMON.dropLogItems.get();
+
+        Queue<BlockPos> queue = new LinkedList<>();
+        Set<BlockPos> visited = new HashSet<>();
+
+        // FIX: Explicitly check and destroy the STARTING block (the one directly above the stump)
+        if (level.getBlockState(startPos).is(BlockTags.LOGS)) {
+            level.destroyBlock(startPos, shouldDrop);
+            currentLogs++;
         }
-        // Fallback if something goes wrong
-        return new ItemStack(net.minecraft.world.level.block.Blocks.STRIPPED_OAK_WOOD);
-    }
-    @Override
-    protected RenderShape getRenderShape(BlockState state) {
-        return RenderShape.ENTITYBLOCK_ANIMATED;
+
+        // Now add it to the queue so we can find its branches
+        queue.add(startPos);
+        visited.add(startPos);
+
+        while (!queue.isEmpty() && currentLogs < maxLogs) {
+            BlockPos currentPos = queue.poll();
+
+            for (int x = -1; x <= 1; x++) {
+                for (int y = -1; y <= 1; y++) {
+                    for (int z = -1; z <= 1; z++) {
+                        if (x == 0 && y == 0 && z == 0) continue;
+
+                        BlockPos targetPos = currentPos.offset(x, y, z);
+
+                        if (!visited.contains(targetPos)) {
+                            BlockState targetState = level.getBlockState(targetPos);
+
+                            if (targetState.is(BlockTags.LOGS)) {
+                                level.destroyBlock(targetPos, shouldDrop);
+                                visited.add(targetPos);
+                                queue.add(targetPos);
+                                currentLogs++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
