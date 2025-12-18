@@ -1,28 +1,34 @@
 package net.axes.naturalregrowth;
 
 import net.axes.naturalregrowth.block.RegrowingStumpBlock;
-import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.level.block.Block;
+import net.axes.naturalregrowth.block.entity.RegrowingStumpBlockEntity;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredBlock;
-import net.neoforged.neoforge.registries.DeferredItem;
+import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 public class ModBlocks {
-    // The Registry: Holds all our blocks
-    public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks("naturalregrowth");
-    public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems("naturalregrowth");
+    // 1. Block Registry
+    public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(NaturalRegrowth.MODID);
 
-    // The Block: "regrowing_stump"
-    public static final DeferredBlock<Block> REGROWING_STUMP = BLOCKS.register("regrowing_stump",
-            RegrowingStumpBlock::new);
+    // 2. Block Entity Registry (NEW)
+    public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
+            DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, NaturalRegrowth.MODID);
 
-    // The Item: We need an item version so you can hold it (optional, but good for debugging)
-    public static final DeferredItem<BlockItem> REGROWING_STUMP_ITEM = ITEMS.registerSimpleBlockItem("regrowing_stump", REGROWING_STUMP);
+    // The Block
+    public static final DeferredBlock<RegrowingStumpBlock> REGROWING_STUMP =
+            BLOCKS.register("regrowing_stump", RegrowingStumpBlock::new);
+
+    // The Block Entity (The "Brain")
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<RegrowingStumpBlockEntity>> REGROWING_STUMP_BE =
+            BLOCK_ENTITIES.register("regrowing_stump", () ->
+                    BlockEntityType.Builder.of(RegrowingStumpBlockEntity::new, REGROWING_STUMP.get()).build(null)
+            );
 
     public static void register(IEventBus eventBus) {
         BLOCKS.register(eventBus);
-        ITEMS.register(eventBus);
+        BLOCK_ENTITIES.register(eventBus); // Don't forget to register the new list!
     }
 }
