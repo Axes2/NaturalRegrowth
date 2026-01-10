@@ -110,18 +110,36 @@ public class TornadoDestructionMixin {
     // --- HELPER METHODS ---
 
     private Block tryGuessStrippedLog(Block logBlock) {
-        // Logic: "natures_spirit:redwood_log" -> "natures_spirit:stripped_redwood_log"
         ResourceLocation id = BuiltInRegistries.BLOCK.getKey(logBlock);
         String namespace = id.getNamespace();
         String path = id.getPath();
 
-        // Standard convention: Prepend "stripped_"
-        String strippedPath = "stripped_" + path;
+        // If the tornado hits a log that is ALREADY stripped, return it as-is.
+        // Otherwise, it falls through, fails the guess, and turns into Oak.
+        if (path.contains("stripped")) {
+            return logBlock;
+        }
+        // ---------------------------------------
 
-        ResourceLocation guessedId = ResourceLocation.fromNamespaceAndPath(namespace, strippedPath);
-        Optional<Block> strippedBlock = BuiltInRegistries.BLOCK.getOptional(guessedId);
+        // Strategy A: The Standard "stripped_" prefix
+        // e.g. "yellow_birch_log" -> "stripped_yellow_birch_log"
+        String guess1 = "stripped_" + path;
+        Optional<Block> result1 = BuiltInRegistries.BLOCK.getOptional(ResourceLocation.fromNamespaceAndPath(namespace, guess1));
+        if (result1.isPresent()) return result1.get();
 
-        return strippedBlock.orElse(null);
+        // Strategy B: Handle "wood" vs "log"
+        // e.g. "yellow_birch_wood" -> "stripped_yellow_birch_wood"
+        if (path.contains("wood")) {
+            String guess2 = "stripped_" + path;
+            Optional<Block> result2 = BuiltInRegistries.BLOCK.getOptional(ResourceLocation.fromNamespaceAndPath(namespace, guess2));
+            if (result2.isPresent()) return result2.get();
+        }
+
+        // Strategy C: Check Vanilla Namespace (Rare, but some mods reuse vanilla stripped logs)
+        Optional<Block> result3 = BuiltInRegistries.BLOCK.getOptional(ResourceLocation.fromNamespaceAndPath("minecraft", guess1));
+        if (result3.isPresent()) return result3.get();
+
+        return null;
     }
 
     private void infectTreeBase(Level level, BlockPos stumpPos, BlockState originalLog) {
