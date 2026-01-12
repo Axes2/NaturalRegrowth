@@ -101,7 +101,7 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
 
     // --- HELPER METHODS ---
 
-    private void destroyTreeFloodFill(ServerLevel level, BlockPos startPos) {
+    public static void destroyTreeFloodFill(ServerLevel level, BlockPos startPos) {
         int maxLogs = 300;
         int currentLogs = 0;
         boolean shouldDrop = Config.COMMON.dropLogItems.get();

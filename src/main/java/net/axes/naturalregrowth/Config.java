@@ -8,9 +8,10 @@ public class Config {
     public static final Common COMMON;
 
     public static class Common {
-        // --- 1. Define the Variables ---
         public final ModConfigSpec.DoubleValue regrowthChance;
         public final ModConfigSpec.IntValue regrowthDelay;
+        public final ModConfigSpec.BooleanValue catchUpGrowth;
+        public final ModConfigSpec.BooleanValue instantCatchUp;
         public final ModConfigSpec.BooleanValue dropLogItems;
 
         public Common(ModConfigSpec.Builder builder) {
@@ -20,21 +21,16 @@ public class Config {
 
             regrowthDelay = builder
                     .comment("The minimum time (in ticks) a stump must wait after creation before it can START trying to grow.",
-                            "This prevents trees from popping back up instantly while a tornado is still nearby.",
-                            "20 Ticks = 1 Second.",
-                            "1200 Ticks = 1 Minute.",
                             "6000 Ticks = 5 Minutes.",
-                            "Default: 1200 (1 minute).")
-                    .defineInRange("regrowthDelay", 1200, 0, 72000); // Max is 1 hour (72000 ticks)
+                            "Default: 6000.")
+                    .defineInRange("regrowthDelay", 6000, 0, 72000);
 
             regrowthChance = builder
                     .comment("The chance (0.0 to 1.0) that a stump will turn into a sapling per random tick.",
-                            "This check only runs AFTER the 'regrowthDelay' time has passed.",
-                            "Higher numbers = Faster regrowth.",
-                            "Default: 0.03 (3% chance per tick) ~38 minutes on average.")
+                            "Default: 0.03 (3%).")
                     .defineInRange("regrowthChance", 0.03, 0.0, 1.0);
 
-            builder.pop(); // Close the "regrowth" section
+            builder.pop(); // Close Regrowth
 
 
             // --- SECTION: PERFORMANCE & DROPS ---
@@ -42,15 +38,26 @@ public class Config {
 
             dropLogItems = builder
                     .comment("If true, logs destroyed by the falling tree logic will drop item stacks.",
-                            "WARNING: Setting this to TRUE may cause significant lag during large storms due to hundreds of items spawning at once.",
-                            "Default: false (Items are deleted to save FPS).")
+                            "Default: false")
                     .define("dropLogItems", false);
 
-            builder.pop(); // Close the "performance" section
+            catchUpGrowth = builder
+                    .comment("If true, stumps in unloaded chunks will simulate growth when the chunk is reloaded.",
+                            "If successful, they will turn into saplings immediately.",
+                            "Default: true")
+                    .define("catchUpGrowth", true);
+
+            instantCatchUp = builder
+                    .comment("If true, the 'Catch-Up' mechanic will force the tree to grow INSTANTLY instead of just placing a sapling.",
+                            "WARNING: This can cause lag spikes if many trees grow at once (e.g., teleporting back to a destroyed forest).",
+                            "Only enable this if you want immediate results and have a strong server/PC.",
+                            "Default: false")
+                    .define("instantCatchUp", false);
+
+            builder.pop(); // Close Performance
         }
     }
 
-    // --- Boilerplate to build the config ---
     static {
         Pair<Common, ModConfigSpec> specPair = new ModConfigSpec.Builder().configure(Common::new);
         SPEC = specPair.getRight();
