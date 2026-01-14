@@ -28,13 +28,8 @@ import java.util.Set;
 
 public class RegrowingStumpBlock extends Block implements EntityBlock {
 
-    public RegrowingStumpBlock() {
-        super(BlockBehaviour.Properties.of()
-                .mapColor(MapColor.WOOD)
-                .strength(2.0f)
-                .sound(SoundType.WOOD)
-                .noOcclusion() // Fixes the lighting/shadow issue
-                .randomTicks());
+    public RegrowingStumpBlock(Properties properties) {
+        super(properties);
     }
 
     @Nullable
@@ -109,13 +104,12 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
         Queue<BlockPos> queue = new LinkedList<>();
         Set<BlockPos> visited = new HashSet<>();
 
-        // FIX: Explicitly check and destroy the STARTING block (the one directly above the stump)
+        // Start checking at the block ABOVE the stump
         if (level.getBlockState(startPos).is(BlockTags.LOGS)) {
             level.destroyBlock(startPos, shouldDrop);
             currentLogs++;
         }
 
-        // Now add it to the queue so we can find its branches
         queue.add(startPos);
         visited.add(startPos);
 
@@ -132,7 +126,9 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
                         if (!visited.contains(targetPos)) {
                             BlockState targetState = level.getBlockState(targetPos);
 
-                            if (targetState.is(BlockTags.LOGS)) {
+                            // target LOGS, EXCLUDE STUMPS.
+                            // Otherwise, the first stump wipes out its neighbors before they can grow.
+                            if (targetState.is(BlockTags.LOGS) && !(targetState.getBlock() instanceof RegrowingStumpBlock)) {
                                 level.destroyBlock(targetPos, shouldDrop);
                                 visited.add(targetPos);
                                 queue.add(targetPos);

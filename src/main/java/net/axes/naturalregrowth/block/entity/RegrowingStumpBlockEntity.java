@@ -18,6 +18,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import java.util.Set;
+import java.util.Collections;
 
 import javax.annotation.Nullable;
 
@@ -40,6 +42,96 @@ public class RegrowingStumpBlockEntity extends BlockEntity {
         return creationTime;
     }
 
+    // --- REAL-TIME REGROWTH (Called by Block Random Tick) ---
+    // This was the missing method!
+    public void performRegrowth(ServerLevel level, BlockPos pos) {
+        // 1. COORDINATION CHECK: Are we part of a 2x2 Mega Base?
+        // If we are, we must wake up our neighbors so we all turn into saplings together.
+        Block mimicBlock = this.mimicState.getBlock();
+        Set<BlockPos> partners = find2x2Partners(level, pos, mimicBlock);
+
+        for (BlockPos partnerPos : partners) {
+            BlockEntity be = level.getBlockEntity(partnerPos);
+            if (be instanceof RegrowingStumpBlockEntity partnerStump) {
+                // Force the partner to grow NOW (Skipping their random lottery)
+                // This ensures all 4 saplings appear on the exact same tick.
+                partnerStump.growIntoSapling();
+            }
+        }
+
+        // 2. Grow ourselves
+        growIntoSapling();
+    }
+
+    // --- 2x2 COORDINATION LOGIC ---
+    private Set<BlockPos> find2x2Partners(ServerLevel level, BlockPos origin, Block mimicBlock) {
+        // We check the 4 directions that 'origin' could be a corner of.
+        int[][] quadrants = {
+                {1, 1},   // We are SW corner
+                {1, -1},  // We are NW corner
+                {-1, 1},  // We are SE corner
+                {-1, -1}  // We are NE corner
+        };
+
+        for (int[] q : quadrants) {
+            BlockPos p1 = origin.offset(q[0], 0, 0);      // Neighbor X
+            BlockPos p2 = origin.offset(0, 0, q[1]);      // Neighbor Z
+            BlockPos p3 = origin.offset(q[0], 0, q[1]);   // Diagonal Partner
+
+            if (isValidPartner(level, p1, mimicBlock) &&
+                    isValidPartner(level, p2, mimicBlock) &&
+                    isValidPartner(level, p3, mimicBlock)) {
+
+                return Set.of(p1, p2, p3);
+            }
+        }
+        return Collections.emptySet();
+    }
+
+    private boolean isValidPartner(ServerLevel level, BlockPos pos, Block mimicBlock) {
+        if (level.getBlockEntity(pos) instanceof RegrowingStumpBlockEntity stump) {
+            // It must be a stump, AND it must be the same wood type.
+            return stump.getMimicState().is(mimicBlock);
+        }
+        return false;
+    }
+
+    // --- INTERNAL GROWTH HELPER ---
+    private void growIntoSapling() {
+        if (level instanceof ServerLevel serverLevel) {
+            BlockPos pos = this.getBlockPos();
+
+            // 1. Clean up old tree parts above us
+            RegrowingStumpBlock.destroyTreeFloodFill(serverLevel, pos.above());
+
+            // 2. Prepare the Sapling
+            BlockState saplingState = this.getFutureSapling();
+
+            // Set to Stage 1 (Ready to grow immediately if bonemealed/ticked)
+            if (saplingState.hasProperty(BlockStateProperties.STAGE)) {
+                saplingState = saplingState.setValue(BlockStateProperties.STAGE, 1);
+            }
+
+            // 3. Place the sapling
+            serverLevel.setBlock(pos, saplingState, 3);
+
+            // 4. Instant Catch-Up (Configurable)
+            if (Config.COMMON.instantCatchUp.get()) {
+                Block block = saplingState.getBlock();
+                if (block instanceof net.minecraft.world.level.block.BonemealableBlock growable) {
+                    if (growable.isValidBonemealTarget(serverLevel, pos, saplingState)) {
+                        try {
+                            growable.performBonemeal(serverLevel, serverLevel.random, pos, saplingState);
+                        } catch (Exception e) {
+                            System.err.println("Natural Regrowth: Failed to instant-grow tree at " + pos + ": " + e.getMessage());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- CATCH UP LOGIC (On Load) ---
     @Override
     public void onLoad() {
         super.onLoad();
@@ -68,52 +160,13 @@ public class RegrowingStumpBlockEntity extends BlockEntity {
         double probOfSuccess = 1.0 - Math.pow(1.0 - p, eligibleTicks);
 
         if (level.random.nextDouble() < probOfSuccess) {
-            growIntoSapling();
+            // Instead of calling growIntoSapling directly, we call performRegrowth
+            // This ensures 2x2 trees catch up together too!
+            performRegrowth((ServerLevel) level, this.getBlockPos());
         }
     }
 
-    private void growIntoSapling() {
-        if (level instanceof ServerLevel serverLevel) {
-            BlockPos pos = this.getBlockPos();
-
-            // 1. ALWAYS Clean up the old tree first (Flood Fill)
-            // This runs for both modes to ensure no floating debris
-            RegrowingStumpBlock.destroyTreeFloodFill(serverLevel, pos.above());
-
-            // 2. Prepare the Sapling
-            BlockState saplingState = this.getFutureSapling();
-
-            // Set to Stage 1 (Ready to grow)
-            if (saplingState.hasProperty(BlockStateProperties.STAGE)) {
-                saplingState = saplingState.setValue(BlockStateProperties.STAGE, 1);
-            }
-
-            // 3. Place the sapling
-            serverLevel.setBlock(pos, saplingState, 3);
-
-            // 4. CHECK CONFIG: Do we force instant growth?
-            if (Config.COMMON.instantCatchUp.get()) {
-                Block block = saplingState.getBlock();
-
-                if (block instanceof net.minecraft.world.level.block.BonemealableBlock growable) {
-                    if (growable.isValidBonemealTarget(serverLevel, pos, saplingState)) {
-                        try {
-                            // The "Bonemeal Trick"
-                            // Since we set STAGE=1 above, this will trigger the tree generation immediately.
-                            growable.performBonemeal(serverLevel, serverLevel.random, pos, saplingState);
-                        } catch (Exception e) {
-                            // If a modded tree crashes during gen, catch it so we don't crash the chunk load
-                            System.err.println("Natural Regrowth: Failed to instant-grow tree at " + pos + ": " + e.getMessage());
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // --- STANDARD METHODS (SetMimic, Save, Load, Packet) ---
-    // (These remain exactly the same as your previous version)
-
+    // --- STANDARD METHODS ---
     public void setMimic(BlockState strippedWood, BlockState sapling) {
         this.mimicState = strippedWood;
         this.futureSapling = sapling;

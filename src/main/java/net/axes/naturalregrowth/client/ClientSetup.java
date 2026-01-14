@@ -15,5 +15,6 @@ public class ClientSetup {
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         // This tells the game: "When you see a REGROWING_STUMP_BE, use the RegrowingStumpRenderer to draw it."
         event.registerBlockEntityRenderer(ModBlocks.REGROWING_STUMP_BE.get(), RegrowingStumpRenderer::new);
+        event.registerBlockEntityRenderer(ModBlocks.HEALING_BE.get(), HealingBlockRenderer::new);
     }
 }

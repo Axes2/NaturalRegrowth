@@ -13,7 +13,9 @@ public class Config {
         public final ModConfigSpec.BooleanValue catchUpGrowth;
         public final ModConfigSpec.BooleanValue instantCatchUp;
         public final ModConfigSpec.BooleanValue dropLogItems;
-
+        public final ModConfigSpec.BooleanValue healScouredGrass;
+        public final ModConfigSpec.DoubleValue healScouredGrassChance;
+        public final ModConfigSpec.DoubleValue healingChance;
         public Common(ModConfigSpec.Builder builder) {
 
             // --- SECTION: REGROWTH SETTINGS ---
@@ -29,6 +31,24 @@ public class Config {
                     .comment("The chance (0.0 to 1.0) that a stump will turn into a sapling per random tick.",
                             "Default: 0.03 (3%).")
                     .defineInRange("regrowthChance", 0.03, 0.0, 1.0);
+
+            healScouredGrass = builder
+                    .comment("If true, Vanilla Grass will naturally spread onto and heal 'Scoured Grass' from PM Weather.",
+                            "This allows tornado scars to heal over time from the edges inward.",
+                            "Default: true")
+                    .define("healScouredGrass", true);
+
+            healScouredGrassChance = builder
+                    .comment("The probability (0.0 to 1.0) that grass will successfully spread to Scoured Grass per tick.",
+                            "Use this to slow down the healing process compared to normal dirt.",
+                            "0.1 = 10% speed of normal grass spread.",
+                            "Default: 0.5 (Slower healing).")
+                    .defineInRange("healScouredGrassChance", 0.50, 0.0, 1.0);
+
+            healingChance = builder
+                    .comment("The chance (0.0 to 1.0) that a wind-damaged log or leaf will heal per random tick.",
+                            "Default: 0.1 (10% chance). Higher = Faster healing.")
+                    .defineInRange("healingChance", 0.1, 0.0, 1.0);
 
             builder.pop(); // Close Regrowth
 
