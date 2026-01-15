@@ -4,7 +4,9 @@
   "package": "net.axes.naturalregrowth.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "TornadoDestructionMixin"
+    "TornadoDestructionMixin",
+    "GrassSpreadMixin",
+    "AmbientDestructionMixin"
   ],
   "injectors": {
     "defaultRequire": 1

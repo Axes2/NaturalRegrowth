@@ -1,35 +1,7 @@
 {
   "variants": {
-    "axis=y,type=0": { "model": "minecraft:block/stripped_oak_wood" },
-    "axis=z,type=0": { "model": "minecraft:block/stripped_oak_wood", "x": 90 },
-    "axis=x,type=0": { "model": "minecraft:block/stripped_oak_wood", "x": 90, "y": 90 },
-
-    "axis=y,type=1": { "model": "minecraft:block/stripped_spruce_wood" },
-    "axis=z,type=1": { "model": "minecraft:block/stripped_spruce_wood", "x": 90 },
-    "axis=x,type=1": { "model": "minecraft:block/stripped_spruce_wood", "x": 90, "y": 90 },
-
-    "axis=y,type=2": { "model": "minecraft:block/stripped_birch_wood" },
-    "axis=z,type=2": { "model": "minecraft:block/stripped_birch_wood", "x": 90 },
-    "axis=x,type=2": { "model": "minecraft:block/stripped_birch_wood", "x": 90, "y": 90 },
-
-    "axis=y,type=3": { "model": "minecraft:block/stripped_jungle_wood" },
-    "axis=z,type=3": { "model": "minecraft:block/stripped_jungle_wood", "x": 90 },
-    "axis=x,type=3": { "model": "minecraft:block/stripped_jungle_wood", "x": 90, "y": 90 },
-
-    "axis=y,type=4": { "model": "minecraft:block/stripped_acacia_wood" },
-    "axis=z,type=4": { "model": "minecraft:block/stripped_acacia_wood", "x": 90 },
-    "axis=x,type=4": { "model": "minecraft:block/stripped_acacia_wood", "x": 90, "y": 90 },
-
-    "axis=y,type=5": { "model": "minecraft:block/stripped_dark_oak_wood" },
-    "axis=z,type=5": { "model": "minecraft:block/stripped_dark_oak_wood", "x": 90 },
-    "axis=x,type=5": { "model": "minecraft:block/stripped_dark_oak_wood", "x": 90, "y": 90 },
-
-    "axis=y,type=6": { "model": "minecraft:block/stripped_cherry_wood" },
-    "axis=z,type=6": { "model": "minecraft:block/stripped_cherry_wood", "x": 90 },
-    "axis=x,type=6": { "model": "minecraft:block/stripped_cherry_wood", "x": 90, "y": 90 },
-
-    "axis=y,type=7": { "model": "minecraft:block/stripped_mangrove_wood" },
-    "axis=z,type=7": { "model": "minecraft:block/stripped_mangrove_wood", "x": 90 },
-    "axis=x,type=7": { "model": "minecraft:block/stripped_mangrove_wood", "x": 90, "y": 90 }
+    "": {
+      "model": "naturalregrowth:block/regrowing_stump"
+    }
   }
 }

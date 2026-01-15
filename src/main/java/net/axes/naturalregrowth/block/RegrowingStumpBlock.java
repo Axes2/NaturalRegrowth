@@ -1,110 +1,143 @@
 package net.axes.naturalregrowth.block;
 
+import net.axes.naturalregrowth.Config;
+import net.axes.naturalregrowth.block.entity.RegrowingStumpBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.RotatedPillarBlock;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.StateDefinition;
-import net.minecraft.world.level.block.state.properties.IntegerProperty;
+import net.minecraft.world.level.material.MapColor;
+import org.jetbrains.annotations.Nullable;
 import net.minecraft.world.level.storage.loot.LootParams;
-import net.axes.naturalregrowth.Config;
-
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import java.util.Collections;
 import java.util.List;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.Set;
 
-public class RegrowingStumpBlock extends RotatedPillarBlock {
+public class RegrowingStumpBlock extends Block implements EntityBlock {
 
-    public static final IntegerProperty TREE_TYPE = IntegerProperty.create("type", 0, 7);
-
-    public RegrowingStumpBlock() {
-        // Properties copied from Oak Log (Strength, Sound, Tool requirement)
-        super(BlockBehaviour.Properties.ofFullCopy(Blocks.OAK_LOG).randomTicks());
-        this.registerDefaultState(this.stateDefinition.any().setValue(TREE_TYPE, 0));
+    public RegrowingStumpBlock(Properties properties) {
+        super(properties);
     }
 
-    // --- DROP LOGIC ---
-    // When broken in Survival, drop the corresponding Stripped Wood item
+    @Nullable
     @Override
-    public List<ItemStack> getDrops(BlockState state, LootParams.Builder builder) {
-        int type = state.getValue(TREE_TYPE);
-        Item dropItem;
+    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+        return new RegrowingStumpBlockEntity(pos, state);
+    }
 
-        switch (type) {
-            case 1: dropItem = Items.STRIPPED_SPRUCE_WOOD; break;
-            case 2: dropItem = Items.STRIPPED_BIRCH_WOOD; break;
-            case 3: dropItem = Items.STRIPPED_JUNGLE_WOOD; break;
-            case 4: dropItem = Items.STRIPPED_ACACIA_WOOD; break;
-            case 5: dropItem = Items.STRIPPED_DARK_OAK_WOOD; break;
-            case 6: dropItem = Items.STRIPPED_CHERRY_WOOD; break;
-            case 7: dropItem = Items.STRIPPED_MANGROVE_WOOD; break;
-            default: dropItem = Items.STRIPPED_OAK_WOOD; break; // Case 0
+    @Override
+    protected RenderShape getRenderShape(BlockState state) {
+        return RenderShape.ENTITYBLOCK_ANIMATED;
+    }
+
+    @Override
+    public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state) {
+        if (level.getBlockEntity(pos) instanceof RegrowingStumpBlockEntity stump) {
+            return new ItemStack(stump.getMimicState().getBlock());
+        }
+        return new ItemStack(net.minecraft.world.level.block.Blocks.STRIPPED_OAK_WOOD);
+    }
+    @Override
+    public List<ItemStack> getDrops(BlockState state, LootParams.Builder params) {
+        // 1. Get the Block Entity involved in this break event
+        BlockEntity be = params.getOptionalParameter(LootContextParams.BLOCK_ENTITY);
+
+        if (be instanceof RegrowingStumpBlockEntity stump) {
+            // 2. Drop the "Mimic" block (e.g. Stripped Mahogany Log)
+            return List.of(new ItemStack(stump.getMimicState().getBlock()));
         }
 
-        return Collections.singletonList(new ItemStack(dropItem));
+        // 3. Fallback (Safe default)
+        return List.of(new ItemStack(net.minecraft.world.level.block.Blocks.STRIPPED_OAK_LOG));
     }
-    // ------------------
 
-    @Override
-    public boolean isRandomlyTicking(BlockState state) {
-        return true;
-    }
+    // --- THE REGROWTH LOGIC ---
 
     @Override
     public void randomTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
+        if (level.isClientSide) return;
 
-        if (random.nextFloat() < Config.COMMON.regrowthChance.get()) {
-            regrow(level, pos, state);
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof RegrowingStumpBlockEntity stump) {
+
+            // CHECK 1: Are we old enough yet?
+            // If the delay is 5 minutes, and we are only 2 minutes old, STOP HERE.
+            long age = level.getGameTime() - stump.getCreationTime();
+            if (age < Config.COMMON.regrowthDelay.get()) {
+                return;
+            }
+
+            // CHECK 2: The Lottery (Random Chance)
+            // Even if we are old enough, we still have to roll the dice.
+            // This ensures the forest heals gradually, not all at once.
+            if (random.nextFloat() > Config.COMMON.regrowthChance.get()) {
+                return;
+            }
+
+            // If both passed, Grow!
+            destroyTreeFloodFill(level, pos.above());
+            BlockState saplingToGrow = stump.getFutureSapling();
+            level.setBlock(pos, saplingToGrow, 3);
         }
     }
 
-    public void regrow(ServerLevel level, BlockPos pos, BlockState state) {
-        // 1. Clean up the dead trunk above
-        breakTrunkAbove(level, pos.above());
+    // --- HELPER METHODS ---
 
-        // 2. Plant the sapling (No sound/particles, just silent growth)
-        BlockState sapling = getSaplingFromType(state.getValue(TREE_TYPE));
-        level.setBlock(pos, sapling, 3);
-    }
-
-    private void breakTrunkAbove(Level level, BlockPos startPos) {
-        BlockPos cursor = startPos;
-        int safety = 0;
-
-        // Use Config for drops
+    public static void destroyTreeFloodFill(ServerLevel level, BlockPos startPos) {
+        int maxLogs = 300;
+        int currentLogs = 0;
         boolean shouldDrop = Config.COMMON.dropLogItems.get();
 
-        while (level.getBlockState(cursor).is(BlockTags.LOGS) && safety < 30) {
-            level.destroyBlock(cursor, shouldDrop);
-            cursor = cursor.above();
-            safety++;
+        Queue<BlockPos> queue = new LinkedList<>();
+        Set<BlockPos> visited = new HashSet<>();
+
+        // Start checking at the block ABOVE the stump
+        if (level.getBlockState(startPos).is(BlockTags.LOGS)) {
+            level.destroyBlock(startPos, shouldDrop);
+            currentLogs++;
         }
-    }
 
-    @Override
-    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        super.createBlockStateDefinition(builder);
-        builder.add(TREE_TYPE);
-    }
+        queue.add(startPos);
+        visited.add(startPos);
 
-    private BlockState getSaplingFromType(int type) {
-        switch (type) {
-            case 1: return Blocks.SPRUCE_SAPLING.defaultBlockState();
-            case 2: return Blocks.BIRCH_SAPLING.defaultBlockState();
-            case 3: return Blocks.JUNGLE_SAPLING.defaultBlockState();
-            case 4: return Blocks.ACACIA_SAPLING.defaultBlockState();
-            case 5: return Blocks.DARK_OAK_SAPLING.defaultBlockState();
-            case 6: return Blocks.CHERRY_SAPLING.defaultBlockState();
-            case 7: return Blocks.MANGROVE_PROPAGULE.defaultBlockState();
-            default: return Blocks.OAK_SAPLING.defaultBlockState();
+        while (!queue.isEmpty() && currentLogs < maxLogs) {
+            BlockPos currentPos = queue.poll();
+
+            for (int x = -1; x <= 1; x++) {
+                for (int y = -1; y <= 1; y++) {
+                    for (int z = -1; z <= 1; z++) {
+                        if (x == 0 && y == 0 && z == 0) continue;
+
+                        BlockPos targetPos = currentPos.offset(x, y, z);
+
+                        if (!visited.contains(targetPos)) {
+                            BlockState targetState = level.getBlockState(targetPos);
+
+                            // target LOGS, EXCLUDE STUMPS.
+                            // Otherwise, the first stump wipes out its neighbors before they can grow.
+                            if (targetState.is(BlockTags.LOGS) && !(targetState.getBlock() instanceof RegrowingStumpBlock)) {
+                                level.destroyBlock(targetPos, shouldDrop);
+                                visited.add(targetPos);
+                                queue.add(targetPos);
+                                currentLogs++;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

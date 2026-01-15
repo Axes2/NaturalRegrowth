@@ -1,148 +1,71 @@
 package net.axes.naturalregrowth.mixin;
 
 import dev.protomanly.pmweather.weather.Storm;
-import net.axes.naturalregrowth.ModBlocks;
 import net.axes.naturalregrowth.block.RegrowingStumpBlock;
+import net.axes.naturalregrowth.compat.NaturalRegrowthCompat;
+import net.axes.naturalregrowth.util.TreeUtils;
 import net.minecraft.core.BlockPos;
-import net.minecraft.tags.BlockTags;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
-import net.axes.naturalregrowth.Config;
+import java.util.Map;
+import java.util.Optional;
 
 @Mixin(Storm.class)
 public class TornadoDestructionMixin {
 
-    @Redirect(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;removeBlock(Lnet/minecraft/core/BlockPos;Z)Z"))
+    // --- DELEGATE TO COMPAT CLASS ---
+    @Redirect(method = "doDamage", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;removeBlock(Lnet/minecraft/core/BlockPos;Z)Z"))
     public boolean onStormRemoveBlock(Level level, BlockPos pos, boolean isMoving) {
+        // API method
+        return NaturalRegrowthCompat.removeBlockWithRegrowth(level, pos, isMoving);
+    }
 
-        BlockState state = level.getBlockState(pos);
+    // --- MIXIN-SPECIFIC LOGIC ---
 
-        // 1. INVINCIBILITY: Save our stumps!
-        if (state.getBlock() instanceof RegrowingStumpBlock) {
+    @Redirect(method = "doDamage", at = @At(value = "INVOKE", target = "Ljava/util/Map;getOrDefault(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"))
+    public Object onGetStrippedVariant(Map<Block, Block> map, Object key, Object defaultValue) {
+        Object result = map.get(key);
+        if (result != null) return result;
+
+        if (key instanceof Block logBlock) {
+            // Using TreeUtils now to keep things consistent
+            Block guessed = tryGuessStrippedLog(logBlock);
+            if (guessed != null) return guessed;
+        }
+        return defaultValue;
+    }
+
+    @Redirect(method = "doDamage", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;setBlockAndUpdate(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Z"))
+    public boolean onStormUpdateBlock(Level level, BlockPos pos, BlockState newState) {
+        if (level.getBlockState(pos).getBlock() instanceof RegrowingStumpBlock) {
             return false;
         }
-
-        // 2. LOG LOGIC: Direct Hits (Center of Storm)
-        if (state.is(BlockTags.LOGS)) {
-            if (isNaturalTree(level, pos)) {
-                BlockPos stumpPos = findStump(level, pos);
-
-                // If the base is already infected, let the storm destroy this specific log block
-                if (level.getBlockState(stumpPos).getBlock() instanceof RegrowingStumpBlock) {
-                    return level.removeBlock(pos, isMoving);
-                }
-
-                // Place the stump and "Vaporize" the trunk immediately (Direct Hit Logic)
-                infectTreeBase(level, stumpPos, state);
-                breakTrunk(level, stumpPos.above()); // Clean up immediately for direct hits
-
-                return true;
-            }
-        }
-
-        // 3. LEAF LOGIC: Glancing Blows (Edge of Storm)
-        // If the storm eats a leaf, check if it's attached to a log
-        if (state.is(BlockTags.LEAVES)) {
-            BlockPos below = pos.below();
-            BlockState stateBelow = level.getBlockState(below);
-
-            // If we just exposed a log, this tree is "dying"
-            if (stateBelow.is(BlockTags.LOGS)) {
-
-                BlockPos stumpPos = findStump(level, below);
-                BlockState stumpState = level.getBlockState(stumpPos);
-
-                // Only infect if it hasn't been infected yet
-                if (!(stumpState.getBlock() instanceof RegrowingStumpBlock)) {
-                    // We ONLY place the stump. We do NOT break the trunk.
-                    // The tree stays standing (with a scarred base) until it regrows later.
-                    infectTreeBase(level, stumpPos, stateBelow);
-                }
-            }
-        }
-
-        return level.removeBlock(pos, isMoving);
+        return level.setBlockAndUpdate(pos, newState);
     }
 
-    // Helper to swap the base block for a Stump
-    private void infectTreeBase(Level level, BlockPos stumpPos, BlockState originalLog) {
-        if (level.getBlockState(stumpPos.below()).is(BlockTags.DIRT)) {
-            int typeId = getTypeIdForLog(originalLog);
+    // Helper for the 'onGetStrippedVariant' redirect above
+    private Block tryGuessStrippedLog(Block logBlock) {
+        ResourceLocation id = BuiltInRegistries.BLOCK.getKey(logBlock);
+        String namespace = id.getNamespace();
+        String path = id.getPath();
+        if (path.contains("stripped")) return logBlock;
 
-            BlockState stumpState = ModBlocks.REGROWING_STUMP.get()
-                    .defaultBlockState()
-                    .setValue(RegrowingStumpBlock.TREE_TYPE, typeId);
+        String guess1 = "stripped_" + path;
+        Optional<Block> result1 = BuiltInRegistries.BLOCK.getOptional(ResourceLocation.fromNamespaceAndPath(namespace, guess1));
+        if (result1.isPresent()) return result1.get();
 
-            level.setBlock(stumpPos, stumpState, 3);
+        if (path.contains("wood")) {
+            String guess2 = "stripped_" + path;
+            Optional<Block> result2 = BuiltInRegistries.BLOCK.getOptional(ResourceLocation.fromNamespaceAndPath(namespace, guess2));
+            if (result2.isPresent()) return result2.get();
         }
-    }
-
-    // Helper used ONLY for Direct Hits (Center of storm)
-    private void breakTrunk(Level level, BlockPos startPos) {
-        BlockPos cursor = startPos;
-        int safety = 0;
-
-        // Check Config
-        boolean shouldDrop = Config.COMMON.dropLogItems.get();
-
-        while (level.getBlockState(cursor).is(BlockTags.LOGS) && safety < 30) {
-            level.destroyBlock(cursor, shouldDrop);
-            cursor = cursor.above();
-            safety++;
-        }
-    }
-
-    private boolean isNaturalTree(Level level, BlockPos pos) {
-        BlockPos cursor = pos;
-        int height = 0;
-        while (level.getBlockState(cursor.above()).is(BlockTags.LOGS) && height < 20) {
-            cursor = cursor.above();
-            height++;
-        }
-        BlockState topBlock = level.getBlockState(cursor.above());
-        if (topBlock.is(BlockTags.LEAVES)) {
-            return !topBlock.getValue(LeavesBlock.PERSISTENT);
-        }
-        // Fallback: If top is air, check neighbors
-        if (topBlock.isAir()) {
-            for (int x = -1; x <= 1; x++) {
-                for (int z = -1; z <= 1; z++) {
-                    if (x==0 && z==0) continue;
-                    BlockState neighbor = level.getBlockState(cursor.offset(x, 0, z));
-                    if (neighbor.is(BlockTags.LEAVES) && !neighbor.getValue(LeavesBlock.PERSISTENT)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    private BlockPos findStump(Level level, BlockPos pos) {
-        BlockPos cursor = pos;
-        int safety = 0;
-        while (level.getBlockState(cursor.below()).is(BlockTags.LOGS) && safety < 30) {
-            cursor = cursor.below();
-            safety++;
-        }
-        return cursor;
-    }
-
-    private int getTypeIdForLog(BlockState logState) {
-        Block log = logState.getBlock();
-        if (log == Blocks.SPRUCE_LOG) return 1;
-        if (log == Blocks.BIRCH_LOG) return 2;
-        if (log == Blocks.JUNGLE_LOG) return 3;
-        if (log == Blocks.ACACIA_LOG) return 4;
-        if (log == Blocks.DARK_OAK_LOG) return 5;
-        if (log == Blocks.CHERRY_LOG) return 6;
-        if (log == Blocks.MANGROVE_LOG) return 7;
-        return 0;
+        Optional<Block> result3 = BuiltInRegistries.BLOCK.getOptional(ResourceLocation.fromNamespaceAndPath("minecraft", guess1));
+        return result3.orElse(null);
     }
 }
