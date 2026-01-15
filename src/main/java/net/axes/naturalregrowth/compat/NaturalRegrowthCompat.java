@@ -135,9 +135,10 @@ public class NaturalRegrowthCompat {
 
     public static boolean isNaturalTree(Level level, BlockPos pos) {
         BlockPos cursor = pos;
-        int height = 0;
+        int height = 0; // Effectively "Height Above"
         boolean hasTrunkVegetation = false;
 
+        // 1. Scan UP (Your existing logic)
         while (level.getBlockState(cursor.above()).is(BlockTags.LOGS) && height < 60) {
             cursor = cursor.above();
             height++;
@@ -152,11 +153,30 @@ public class NaturalRegrowthCompat {
             }
         }
 
+        // --- NEW: BUSH FILTER ---
+
+        BlockPos downCursor = pos;
+        int heightBelow = 0;
+        // Only need 1 block down to prove the total height is at least 2
+        while (level.getBlockState(downCursor.below()).is(BlockTags.LOGS) && heightBelow < 1) {
+            downCursor = downCursor.below();
+            heightBelow++;
+        }
+
+        // If the total height is less than 2 ignore
+        if ((height + heightBelow + 1) < 2) {
+            return false;
+        }
+
+        // 2. 2x2 check
         if (height > 20) {
             if (!tryFind2x2Base(level, pos, level.getBlockState(pos).getBlock()).isEmpty()) return true;
         }
+
+        // 3. Vegetation Backup
         if (hasTrunkVegetation && height > 6) return true;
 
+        // 4. Crown Scanning
         BlockPos top = cursor;
         int searchDown = 5;
         int searchUp = 2;
@@ -171,7 +191,7 @@ public class NaturalRegrowthCompat {
             }
         }
 
-        // Scan outer ring for branches
+        // 5. Outer Ring Scan
         int radiusXZ = 3;
         for (int y = -searchDown; y <= searchUp; y++) {
             for (int x = -radiusXZ; x <= radiusXZ; x++) {
