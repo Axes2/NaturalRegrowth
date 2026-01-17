@@ -3,7 +3,7 @@ package net.axes.naturalregrowth.compat;
 import net.axes.naturalregrowth.ModBlocks;
 import net.axes.naturalregrowth.block.RegrowingStumpBlock;
 import net.axes.naturalregrowth.block.entity.RegrowingStumpBlockEntity;
-import net.axes.naturalregrowth.util.TreeUtils; // Uses your existing TreeUtils to avoid duplicate code
+import net.axes.naturalregrowth.util.TreeUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -22,51 +22,195 @@ import java.util.Set;
 
 public class NaturalRegrowthCompat {
 
-    /**
-     * Attempts to remove a block using Natural Regrowth's logic.
-     * If the block is a tree part, it may be replaced by a Stump or trigger tree infection.
-     *
-     * @param level    The level
-     * @param pos      The position of the block to remove
-     * @param isMoving Whether the block is moving (standard removeBlock param)
-     * @return True if the block was removed (or replaced by a stump), False otherwise.
-     */
     public static boolean removeBlockWithRegrowth(Level level, BlockPos pos, boolean isMoving) {
         BlockState state = level.getBlockState(pos);
-        // Don't destroy stumps
+
+        // Safety: Don't break our own stumps
         if (state.getBlock() instanceof RegrowingStumpBlock) return false;
 
-        // LOG LOGIC
+        // 1. LOG LOGIC (Direct Hit)
         if (state.is(BlockTags.LOGS)) {
-            if (isNaturalTree(level, pos)) {
-                BlockPos stumpPos = findStump(level, pos);
-                if (level.getBlockState(stumpPos).getBlock() instanceof RegrowingStumpBlock) {
+            // Find the bottom of this specific log column (handling diagonals)
+            BlockPos bottom = getTrueTreeBottom(level, pos);
+            if (isNaturalTree(level, bottom)) {
+                // Check if already infected
+                if (level.getBlockState(bottom).getBlock() instanceof RegrowingStumpBlock) {
                     return level.removeBlock(pos, isMoving);
                 }
-                infectTreeBase(level, stumpPos, state);
+                infectTreeBase(level, bottom, state);
                 return true;
             }
         }
 
-        // LEAF LOGIC
+        // 2. LEAF LOGIC (The "Spider" Search)
         if (state.is(BlockTags.LEAVES)) {
-            BlockPos below = pos.below();
-            BlockState stateBelow = level.getBlockState(below);
-            if (stateBelow.is(BlockTags.LOGS)) {
-                BlockPos stumpPos = findStump(level, below);
+            // NEW: Instead of just checking below, scan for ANY nearby log
+            BlockPos nearbyLog = findNeighborLog(level, pos);
+
+            if (nearbyLog != null) {
+                // Trace that log down to the stump
+                BlockPos stumpPos = getTrueTreeBottom(level, nearbyLog);
                 BlockState stumpState = level.getBlockState(stumpPos);
-                if (!(stumpState.getBlock() instanceof RegrowingStumpBlock)) {
-                    infectTreeBase(level, stumpPos, stateBelow);
+
+                // If valid tree & not yet infected
+                if (isNaturalTree(level, stumpPos) && !(stumpState.getBlock() instanceof RegrowingStumpBlock)) {
+                    // We found the log this leaf belonged to!
+                    infectTreeBase(level, stumpPos, level.getBlockState(nearbyLog));
                 }
             }
         }
 
-        // Standard vanilla removal
         return level.removeBlock(pos, isMoving);
     }
 
-    // --- INTERNAL HELPERS ---
+    // --- NEW HELPERS ---
 
+    /**
+     * Scans a 3x3x3 area around the broken leaf to find a connecting log.
+     * Crucial for Acacia/Dark Oak where leaves are offset from the trunk.
+     */
+    private static BlockPos findNeighborLog(Level level, BlockPos center) {
+        int radius = 2; // Look 2 blocks out (covers most branch structures)
+
+        for (int x = -radius; x <= radius; x++) {
+            for (int y = -radius; y <= radius; y++) {
+                for (int z = -radius; z <= radius; z++) {
+                    // Skip center
+                    if (x == 0 && y == 0 && z == 0) continue;
+
+                    BlockPos target = center.offset(x, y, z);
+                    if (level.getBlockState(target).is(BlockTags.LOGS)) {
+                        return target;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * "The Crawler" - Follows logs DOWN (including diagonals) to find the true base.
+     * Solves the Acacia "Bending Trunk" issue.
+     */
+    private static BlockPos getTrueTreeBottom(Level level, BlockPos startPos) {
+        BlockPos cursor = startPos;
+        int safety = 0;
+
+        // Keep moving down as long as we can find a connected log below
+        while (safety < 40) {
+            // 1. Check directly below
+            if (level.getBlockState(cursor.below()).is(BlockTags.LOGS)) {
+                cursor = cursor.below();
+            }
+            // 2. Check diagonals below (for Acacia/Dark Oak)
+            else {
+                boolean foundDiagonal = false;
+                // Scan the 8 blocks around the block BELOW us
+                for (int x = -1; x <= 1; x++) {
+                    for (int z = -1; z <= 1; z++) {
+                        if (x==0 && z==0) continue;
+                        BlockPos diag = cursor.offset(x, -1, z);
+                        if (level.getBlockState(diag).is(BlockTags.LOGS)) {
+                            cursor = diag;
+                            foundDiagonal = true;
+                            break;
+                        }
+                    }
+                    if (foundDiagonal) break;
+                }
+
+                // If no log below or diagonal-below, we hit the bottom
+                if (!foundDiagonal) {
+                    return cursor;
+                }
+            }
+            safety++;
+        }
+        return cursor;
+    }
+
+    /**
+     * Updated Validator: Checks criteria starting from the KNOWN bottom.
+     */
+    public static boolean isNaturalTree(Level level, BlockPos bottomPos) {
+        // 1. Ground Check
+        BlockState ground = level.getBlockState(bottomPos.below());
+        boolean isValidGround = ground.is(BlockTags.DIRT) ||
+                ground.is(BlockTags.SAND) ||
+                ground.is(Blocks.MANGROVE_ROOTS) ||
+                ground.is(Blocks.CLAY) ||
+                ground.is(Blocks.MOSS_BLOCK) ||
+                ground.is(BlockTags.NYLIUM) ||
+                ground.is(Blocks.END_STONE);
+        if (!isValidGround) return false;
+
+        // 2. Height Check (Scan UP from bottom using the same Crawler logic)
+        int height = measureTreeHeight(level, bottomPos);
+        if (height < 3) return false;
+
+        // 3. Crown Check
+        // If it's a Mega Tree (tall + thick), we are lenient
+        if (height > 10 && !tryFind2x2Base(level, bottomPos, level.getBlockState(bottomPos).getBlock()).isEmpty()) {
+            return true;
+        }
+
+        // Otherwise, scan for leaves near the top
+        // (We estimate the top is at bottom.y + height)
+        BlockPos estimatedTop = bottomPos.above(height);
+        return hasLeavesNearby(level, estimatedTop);
+    }
+
+    private static int measureTreeHeight(Level level, BlockPos bottom) {
+        BlockPos cursor = bottom;
+        int height = 1;
+        int safety = 0;
+
+        while (safety < 60) {
+            // Try UP
+            if (level.getBlockState(cursor.above()).is(BlockTags.LOGS)) {
+                cursor = cursor.above();
+                height++;
+            }
+            // Try Diagonals UP
+            else {
+                boolean foundDiag = false;
+                for (int x = -1; x <= 1; x++) {
+                    for (int z = -1; z <= 1; z++) {
+                        if (x==0 && z==0) continue;
+                        BlockPos diag = cursor.offset(x, 1, z);
+                        if (level.getBlockState(diag).is(BlockTags.LOGS)) {
+                            cursor = diag;
+                            height++;
+                            foundDiag = true;
+                            break;
+                        }
+                    }
+                    if (foundDiag) break;
+                }
+                if (!foundDiag) break; // End of tree
+            }
+            safety++;
+        }
+        return height;
+    }
+
+    private static boolean hasLeavesNearby(Level level, BlockPos topPos) {
+        // Scan a box around the estimated top
+        int radius = 3;
+        for (int y = -2; y <= 2; y++) {
+            for (int x = -radius; x <= radius; x++) {
+                for (int z = -radius; z <= radius; z++) {
+                    BlockPos p = topPos.offset(x, y, z);
+                    BlockState s = level.getBlockState(p);
+                    if (s.is(BlockTags.LEAVES) && !s.getValue(LeavesBlock.PERSISTENT)) return true;
+                    if (s.is(Blocks.VINE) || s.is(Blocks.MANGROVE_LEAVES)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // --- EXISTING HELPERS (Unchanged) ---
     private static void infectTreeBase(Level level, BlockPos stumpPos, BlockState originalLog) {
         Set<BlockPos> base2x2 = tryFind2x2Base(level, stumpPos, originalLog.getBlock());
 
@@ -80,34 +224,20 @@ public class NaturalRegrowthCompat {
     }
 
     private static void placeSingleStump(Level level, BlockPos pos, BlockState originalState) {
-        BlockPos below = pos.below();
-        BlockState ground = level.getBlockState(below);
+        if (level.getBlockState(pos).getBlock() instanceof RegrowingStumpBlock) return;
 
-        // HARDENED CHECK:
-        // 1. Must be DIRT (Vanilla check)
-        // 2. Must NOT be LEAVES (Prevents canopy stumps)
-        // 3. Must NOT be LOGS (Prevents stacking stumps)
-        // 4. Must NOT be AIR (Prevents floating stumps)
-        if (ground.is(BlockTags.DIRT)
-                && !ground.is(BlockTags.LEAVES)
-                && !ground.is(BlockTags.LOGS)
-                && !ground.isAir()) {
+        BlockState disguise = TreeUtils.getStrippedLog(level, pos, originalState);
+        BlockState sapling = getSaplingFromLog(originalState);
 
-            // Prevent overwrite of an existing stump
-            if (level.getBlockState(pos).getBlock() instanceof RegrowingStumpBlock) return;
+        level.setBlock(pos, ModBlocks.REGROWING_STUMP.get().defaultBlockState(), 3);
 
-            BlockState disguise = TreeUtils.getStrippedLog(level, pos, originalState);
-            BlockState sapling = getSaplingFromLog(originalState);
-
-            level.setBlock(pos, ModBlocks.REGROWING_STUMP.get().defaultBlockState(), 3);
-
-            BlockEntity be = level.getBlockEntity(pos);
-            if (be instanceof RegrowingStumpBlockEntity stump) {
-                stump.setMimic(disguise, sapling);
-                stump.setCreationTime(level.getGameTime());
-            }
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof RegrowingStumpBlockEntity stump) {
+            stump.setMimic(disguise, sapling);
+            stump.setCreationTime(level.getGameTime());
         }
     }
+
     private static Set<BlockPos> tryFind2x2Base(Level level, BlockPos origin, Block logBlock) {
         int[][] offsets = {
                 {0, 0,  1, 0,  0, 1,  1, 1},
@@ -131,74 +261,6 @@ public class NaturalRegrowthCompat {
             if (match) return candidates;
         }
         return Collections.emptySet();
-    }
-
-    public static boolean isNaturalTree(Level level, BlockPos pos) {
-        BlockPos cursor = pos;
-        int height = 0;
-        boolean hasTrunkVegetation = false;
-
-        while (level.getBlockState(cursor.above()).is(BlockTags.LOGS) && height < 60) {
-            cursor = cursor.above();
-            height++;
-            if (!hasTrunkVegetation) {
-                for (Direction dir : Direction.Plane.HORIZONTAL) {
-                    BlockState sideState = level.getBlockState(cursor.relative(dir));
-                    if (sideState.is(Blocks.VINE) || sideState.is(Blocks.COCOA)) {
-                        hasTrunkVegetation = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (height > 20) {
-            if (!tryFind2x2Base(level, pos, level.getBlockState(pos).getBlock()).isEmpty()) return true;
-        }
-        if (hasTrunkVegetation && height > 6) return true;
-
-        BlockPos top = cursor;
-        int searchDown = 5;
-        int searchUp = 2;
-
-        for (int y = -searchDown; y <= searchUp; y++) {
-            for (int x = -1; x <= 1; x++) {
-                for (int z = -1; z <= 1; z++) {
-                    if (x == 0 && z == 0) continue;
-                    BlockState state = level.getBlockState(top.offset(x, y, z));
-                    if (state.is(BlockTags.LEAVES) && !state.getValue(LeavesBlock.PERSISTENT)) return true;
-                }
-            }
-        }
-
-        // Scan outer ring for branches
-        int radiusXZ = 3;
-        for (int y = -searchDown; y <= searchUp; y++) {
-            for (int x = -radiusXZ; x <= radiusXZ; x++) {
-                for (int z = -radiusXZ; z <= radiusXZ; z++) {
-                    if (Math.abs(x) <= 1 && Math.abs(z) <= 1) continue;
-                    BlockPos leafPos = top.offset(x, y, z);
-                    BlockState state = level.getBlockState(leafPos);
-                    if (state.is(BlockTags.LEAVES) && !state.getValue(LeavesBlock.PERSISTENT)) {
-                        for (Direction d : Direction.values()) {
-                            if (level.getBlockState(leafPos.relative(d)).is(BlockTags.LOGS)) return true;
-                        }
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private static BlockPos findStump(Level level, BlockPos pos) {
-        BlockPos cursor = pos;
-        int safety = 0;
-        while (level.getBlockState(cursor.below()).is(BlockTags.LOGS) && safety < 30) {
-            cursor = cursor.below();
-            safety++;
-        }
-        return cursor;
     }
 
     private static BlockState getSaplingFromLog(BlockState logState) {
