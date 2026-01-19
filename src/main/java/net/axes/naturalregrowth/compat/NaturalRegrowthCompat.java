@@ -5,7 +5,7 @@ import net.axes.naturalregrowth.block.RegrowingStumpBlock;
 import net.axes.naturalregrowth.block.entity.RegrowingStumpBlockEntity;
 import net.axes.naturalregrowth.util.TreeUtils;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import net.minecraft.core.Direction; //
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BlockTags;
@@ -144,11 +144,15 @@ public class NaturalRegrowthCompat {
                 ground.is(Blocks.END_STONE);
         if (!isValidGround) return false;
 
-        // 2. Height Check (Scan UP from bottom using the same Crawler logic)
+        // 2. Structure Safety Check (NEW)
+        // If the base of the tree is touching artificial blocks, we assume it's part of a structure.
+        if (hasArtificialNeighbors(level, bottomPos)) return false;
+
+        // 3. Height Check (Scan UP from bottom using the same Crawler logic)
         int height = measureTreeHeight(level, bottomPos);
         if (height < 3) return false;
 
-        // 3. Crown Check
+        // 4. Crown Check
         // If it's a Mega Tree (tall + thick), we are lenient
         if (height > 10 && !tryFind2x2Base(level, bottomPos, level.getBlockState(bottomPos).getBlock()).isEmpty()) {
             return true;
@@ -158,6 +162,22 @@ public class NaturalRegrowthCompat {
         // (We estimate the top is at bottom.y + height)
         BlockPos estimatedTop = bottomPos.above(height);
         return hasLeavesNearby(level, estimatedTop);
+    }
+
+    /**
+     * Checks if the log block is adjacent to Cobblestone or Terracotta.
+     * This helps distinguish natural trees from village houses or ruins.
+     */
+    private static boolean hasArtificialNeighbors(Level level, BlockPos pos) {
+        for (Direction dir : Direction.Plane.HORIZONTAL) {
+            BlockState neighbor = level.getBlockState(pos.relative(dir));
+            if (neighbor.is(Blocks.COBBLESTONE) ||
+                    neighbor.is(Blocks.MOSSY_COBBLESTONE) ||
+                    neighbor.is(BlockTags.TERRACOTTA)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int measureTreeHeight(Level level, BlockPos bottom) {

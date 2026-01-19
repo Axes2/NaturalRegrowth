@@ -3,26 +3,26 @@ package net.axes.naturalregrowth.block;
 import net.axes.naturalregrowth.Config;
 import net.axes.naturalregrowth.block.entity.RegrowingStumpBlockEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CocoaBlock;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RenderShape;
-import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.material.MapColor;
-import org.jetbrains.annotations.Nullable;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
-import java.util.Collections;
-import java.util.List;
+import org.jetbrains.annotations.Nullable;
+
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 
@@ -48,8 +48,9 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
         if (level.getBlockEntity(pos) instanceof RegrowingStumpBlockEntity stump) {
             return new ItemStack(stump.getMimicState().getBlock());
         }
-        return new ItemStack(net.minecraft.world.level.block.Blocks.STRIPPED_OAK_WOOD);
+        return new ItemStack(Blocks.STRIPPED_OAK_WOOD);
     }
+
     @Override
     public List<ItemStack> getDrops(BlockState state, LootParams.Builder params) {
         // 1. Get the Block Entity involved in this break event
@@ -61,7 +62,7 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
         }
 
         // 3. Fallback (Safe default)
-        return List.of(new ItemStack(net.minecraft.world.level.block.Blocks.STRIPPED_OAK_LOG));
+        return List.of(new ItemStack(Blocks.STRIPPED_OAK_LOG));
     }
 
     // --- THE REGROWTH LOGIC ---
@@ -74,23 +75,18 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
         if (be instanceof RegrowingStumpBlockEntity stump) {
 
             // CHECK 1: Are we old enough yet?
-            // If the delay is 5 minutes, and we are only 2 minutes old, STOP HERE.
             long age = level.getGameTime() - stump.getCreationTime();
             if (age < Config.COMMON.regrowthDelay.get()) {
                 return;
             }
 
             // CHECK 2: The Lottery (Random Chance)
-            // Even if we are old enough, we still have to roll the dice.
-            // This ensures the forest heals gradually, not all at once.
             if (random.nextFloat() > Config.COMMON.regrowthChance.get()) {
                 return;
             }
 
-            // If both passed, Grow!
-            destroyTreeFloodFill(level, pos.above());
-            BlockState saplingToGrow = stump.getFutureSapling();
-            level.setBlock(pos, saplingToGrow, 3);
+            // CHECK 3: Delegate to BlockEntity (Handles 2x2 Logic)
+            stump.performRegrowth(level, pos);
         }
     }
 
@@ -104,9 +100,9 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
         Queue<BlockPos> queue = new LinkedList<>();
         Set<BlockPos> visited = new HashSet<>();
 
-        // Start checking at the block ABOVE the stump
+        // Helper check for the first block
         if (level.getBlockState(startPos).is(BlockTags.LOGS)) {
-            level.destroyBlock(startPos, shouldDrop);
+            breakLogWithExtras(level, startPos, shouldDrop); // <--- Updated call
             currentLogs++;
         }
 
@@ -127,9 +123,8 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
                             BlockState targetState = level.getBlockState(targetPos);
 
                             // target LOGS, EXCLUDE STUMPS.
-                            // Otherwise, the first stump wipes out its neighbors before they can grow.
                             if (targetState.is(BlockTags.LOGS) && !(targetState.getBlock() instanceof RegrowingStumpBlock)) {
-                                level.destroyBlock(targetPos, shouldDrop);
+                                breakLogWithExtras(level, targetPos, shouldDrop); // <--- Updated call
                                 visited.add(targetPos);
                                 queue.add(targetPos);
                                 currentLogs++;
@@ -139,5 +134,24 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
                 }
             }
         }
+    }
+
+    /**
+     * Safely breaks a log AND its dependent neighbors (Cocoa, Vines) to prevent floating blocks.
+     */
+    private static void breakLogWithExtras(ServerLevel level, BlockPos pos, boolean drop) {
+        // 1. Check all 6 sides for attached "extras"
+        for (Direction dir : Direction.values()) {
+            BlockPos neighbor = pos.relative(dir);
+            BlockState state = level.getBlockState(neighbor);
+
+            //Cocoa Pod or Vine attached to this log, break it too
+            if (state.getBlock() instanceof CocoaBlock || state.is(Blocks.VINE)) {
+                level.destroyBlock(neighbor, drop);
+            }
+        }
+
+        // 2. Break the log itself
+        level.destroyBlock(pos, drop);
     }
 }
