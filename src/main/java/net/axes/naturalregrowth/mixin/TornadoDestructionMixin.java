@@ -3,7 +3,8 @@ package net.axes.naturalregrowth.mixin;
 import dev.protomanly.pmweather.weather.Storm;
 import net.axes.naturalregrowth.block.RegrowingStumpBlock;
 import net.axes.naturalregrowth.compat.NaturalRegrowthCompat;
-import net.axes.naturalregrowth.util.TreeUtils;
+import net.axes.naturalregrowth.compat.dt.DTLoader;
+import net.axes.naturalregrowth.compat.dt.DTIntegration;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -19,14 +20,19 @@ import java.util.Optional;
 @Mixin(Storm.class)
 public class TornadoDestructionMixin {
 
-    // --- DELEGATE TO COMPAT CLASS ---
     @Redirect(method = "doDamage", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;removeBlock(Lnet/minecraft/core/BlockPos;Z)Z"))
     public boolean onStormRemoveBlock(Level level, BlockPos pos, boolean isMoving) {
-        // API method
+        // 1. DYNAMIC TREES CHECK
+        if (DTLoader.isLoaded()) {
+            BlockState state = level.getBlockState(pos);
+            if (DTIntegration.handleStormDamage(level, pos, state)) {
+                return true;
+            }
+        }
+
+        // 2. VANILLA REGROWTH CHECK
         return NaturalRegrowthCompat.removeBlockWithRegrowth(level, pos, isMoving);
     }
-
-    // --- MIXIN-SPECIFIC LOGIC ---
 
     @Redirect(method = "doDamage", at = @At(value = "INVOKE", target = "Ljava/util/Map;getOrDefault(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"))
     public Object onGetStrippedVariant(Map<Block, Block> map, Object key, Object defaultValue) {
@@ -34,7 +40,6 @@ public class TornadoDestructionMixin {
         if (result != null) return result;
 
         if (key instanceof Block logBlock) {
-            // Using TreeUtils now to keep things consistent
             Block guessed = tryGuessStrippedLog(logBlock);
             if (guessed != null) return guessed;
         }
@@ -49,7 +54,6 @@ public class TornadoDestructionMixin {
         return level.setBlockAndUpdate(pos, newState);
     }
 
-    // Helper for the 'onGetStrippedVariant' redirect above
     private Block tryGuessStrippedLog(Block logBlock) {
         ResourceLocation id = BuiltInRegistries.BLOCK.getKey(logBlock);
         String namespace = id.getNamespace();

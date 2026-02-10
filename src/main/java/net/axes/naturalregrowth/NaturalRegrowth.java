@@ -23,6 +23,7 @@ public class NaturalRegrowth {
         // Register the Config
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
         modEventBus.addListener(this::commonSetup);
+        net.axes.naturalregrowth.compat.dt.DTLoader.init(modEventBus); //NEW DT Compatiblity
 
         LOGGER.info("Natural Regrowth loaded successfully.");
     }

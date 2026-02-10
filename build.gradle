@@ -119,7 +119,11 @@ configurations {
 
 dependencies {
     //implementation files('libs/pmweather-0.15.3-1.21.1-alpha.jar')
-    implementation fileTree(dir: 'libs', include: '*.jar')
+    // 1. Add Dynamic Trees as Compile Only (so code compiles, but mod isn't installed)
+    compileOnly files("libs/dynamictrees-neoforge-1.21.1-1.6.0-BETA04.jar")
+
+// 2. Add everything else in libs as normal, but EXCLUDE Dynamic Trees
+    implementation fileTree(dir: 'libs', include: '*.jar', exclude: 'dynamictrees*.jar')
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"

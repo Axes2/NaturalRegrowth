@@ -3,14 +3,14 @@ package net.axes.naturalregrowth.block;
 import net.axes.naturalregrowth.Config;
 import net.axes.naturalregrowth.ModBlocks;
 import net.axes.naturalregrowth.block.entity.HealingBlockEntity;
+import net.axes.naturalregrowth.compat.dt.DTIntegration; // Import Compat
+import net.axes.naturalregrowth.compat.dt.DTLoader;     // Import Loader
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
@@ -32,6 +32,7 @@ public class HealingBlock extends Block implements EntityBlock {
     public HealingBlock(Properties properties) {
         super(properties);
     }
+
     @Override
     public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
         // If it's a Leaf, return EMPTY (No hitbox, no outline)
@@ -49,8 +50,6 @@ public class HealingBlock extends Block implements EntityBlock {
 
     @Override
     public void randomTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
-
-        // NEW: Configurable Chance
         // Default 0.2, 20% chance per tick
         if (random.nextFloat() < Config.COMMON.healingChance.get()) {
             BlockEntity be = level.getBlockEntity(pos);
@@ -63,56 +62,47 @@ public class HealingBlock extends Block implements EntityBlock {
     private void attemptHealOrDecay(ServerLevel level, BlockPos pos, BlockState currentState, HealingBlockEntity healer) {
         BlockState original = healer.getOriginalState();
 
-        // 1. If LOG, just heal.
+        // 1. If LOG, just heal. (Logs are structural, they don't need support)
         if (currentState.is(ModBlocks.HEALING_LOG.get())) {
             level.setBlockAndUpdate(pos, original);
             return;
         }
 
-        // 2. If LEAF, check for support
+        // 2. If LEAF, check for IMMEDIATE support
         if (currentState.is(ModBlocks.HEALING_LEAF.get())) {
             if (isSafeToHeal(level, pos)) {
                 // Connected to a tree -> Regrow!
                 level.setBlockAndUpdate(pos, original);
             } else {
-                // Floating in air -> Decay! (Vanish)
+                // Floating in air with no support -> Decay! (Vanish)
+                // Note: If you want them to wait longer instead of decaying, remove this else block.
+                // But decaying cleans up "magic floating leaves".
                 level.removeBlock(pos, false);
             }
         }
     }
 
-    // --- BFS SEARCH FOR "STABLE LOG" ---
-    private boolean isSafeToHeal(LevelReader level, BlockPos startPos) {
-        // Range: 6 blocks (Standard vanilla leaf distance)
-        int range = 6;
+    // --- REPLACED: NEW "CONTACT" CHECK ---
+    private boolean isSafeToHeal(LevelReader level, BlockPos pos) {
+        // We only check immediate neighbors (touching faces).
+        // This forces the "Ripple Effect": Trunk -> Inner Leaves -> Outer Leaves.
 
-        // Simple optimization: Check immediate neighbors first
-        for (Direction d : Direction.values()) {
-            if (isStableLog(level.getBlockState(startPos.relative(d)))) return true;
-        }
+        for (Direction dir : Direction.values()) {
+            BlockPos neighborPos = pos.relative(dir);
+            BlockState neighborState = level.getBlockState(neighborPos);
 
-        // BFS (Breadth-First Search)
-        // We look for a path from 'startPos' to any 'Stable Log' passing only through 'Healing Leaves' or 'Leaves'.
-        // To keep performance high, we won't implement a full recursive BFS here unless necessary.
-        // Instead, we will do a simplified check:
-        // "Is there a Log within range?"
+            // 1. Is it a Log? (Vanilla Log, Healing Log, Stump)
+            if (isStableLog(neighborState)) return true;
 
-        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
-        for (int x = -range; x <= range; x++) {
-            for (int y = -range; y <= range; y++) {
-                for (int z = -range; z <= range; z++) {
-                    cursor.setWithOffset(startPos, x, y, z);
-                    BlockState state = level.getBlockState(cursor);
+            // 2. Is it a Real Leaf? (Vanilla Leaves)
+            // We EXCLUDE healing leaves here. A leaf cannot heal off another ghost leaf.
+            // It must wait for the neighbor to become real first.
+            if (isStableLeaf(neighborState)) return true;
 
-                    // Found a support beam!
-                    if (isStableLog(state)) {
-                        // In a perfect world, we check connectivity.
-                        // For a "Random Tick" optimization, distance check is usually "Good Enough".
-                        if (cursor.distSqr(startPos) <= range * range) {
-                            return true;
-                        }
-                    }
-                }
+            // 3. Dynamic Trees Support
+            if (DTLoader.isLoaded()) {
+                if (DTIntegration.isDTBranch(neighborState)) return true;
+                if (DTIntegration.isDTLeaf(neighborState)) return true;
             }
         }
         return false;
@@ -122,28 +112,34 @@ public class HealingBlock extends Block implements EntityBlock {
         // A "Stable Log" is any Log, Stump, or Healing Log.
         // It is NOT a Healing Leaf.
         if (state.is(ModBlocks.HEALING_LEAF.get())) return false;
+
         if (state.is(ModBlocks.HEALING_LOG.get())) return true;
         if (state.is(ModBlocks.REGROWING_STUMP.get())) return true;
 
         return state.is(BlockTags.LOGS);
     }
 
+    private boolean isStableLeaf(BlockState state) {
+        // A "Stable Leaf" is a REAL leaf block.
+        // It is NOT a Healing Leaf (Ghost).
+        if (state.is(ModBlocks.HEALING_LEAF.get())) return false;
+
+        return state.is(BlockTags.LEAVES);
+    }
+
     // --- SURVIVAL DROPS ---
 
     @Override
     public List<ItemStack> getDrops(BlockState state, LootParams.Builder params) {
-        // Get the TileEntity to see what we are holding
         BlockEntity be = params.getOptionalParameter(LootContextParams.BLOCK_ENTITY);
 
         if (be instanceof HealingBlockEntity healer) {
             BlockState original = healer.getOriginalState();
 
-            // If it was a Log, drop the Item of that Log
             if (state.is(ModBlocks.HEALING_LOG.get())) {
                 return Collections.singletonList(new ItemStack(original.getBlock()));
             }
 
-            // If it was a Leaf, drop NOTHING (Ghost block behavior)
             if (state.is(ModBlocks.HEALING_LEAF.get())) {
                 return Collections.emptyList();
             }
@@ -152,7 +148,6 @@ public class HealingBlock extends Block implements EntityBlock {
         return super.getDrops(state, params);
     }
 
-    // Handle Pick Block (Creative Mode Middle Click)
     @Override
     public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state) {
         BlockEntity be = level.getBlockEntity(pos);
@@ -161,7 +156,6 @@ public class HealingBlock extends Block implements EntityBlock {
         }
         return super.getCloneItemStack(level, pos, state);
     }
-
 
     @Nullable
     @Override

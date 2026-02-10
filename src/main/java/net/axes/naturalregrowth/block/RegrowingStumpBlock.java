@@ -134,7 +134,7 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
                 baseCount++;
             }
         }
-        if (baseCount > 7) return; // ABORT: Base is too wide (Wall/Foundation)
+        if (baseCount > 4) return; // ABORT: Base is too wide (Wall/Foundation)
 
         // --- PHASE 3: DESTRUCTION ---
         for (BlockPos pos : logsToBreak) {

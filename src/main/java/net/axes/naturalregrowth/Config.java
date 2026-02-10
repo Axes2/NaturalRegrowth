@@ -16,6 +16,8 @@ public class Config {
         public final ModConfigSpec.BooleanValue healScouredGrass;
         public final ModConfigSpec.DoubleValue healScouredGrassChance;
         public final ModConfigSpec.DoubleValue healingChance;
+        public final ModConfigSpec.IntValue windRadius;
+
         public Common(ModConfigSpec.Builder builder) {
 
             // --- SECTION: REGROWTH SETTINGS ---
@@ -73,6 +75,12 @@ public class Config {
                             "Only enable this if you want immediate results and have a strong server/PC.",
                             "Default: false")
                     .define("instantCatchUp", false);
+
+            windRadius = builder
+                    .comment("The radius (in blocks) around the player where wind damage occurs.",
+                            "Higher values check more blocks but may impact performance.",
+                            "Default: 64")
+                    .defineInRange("windRadius", 64, 16, 256);
 
             builder.pop(); // Close Performance
         }

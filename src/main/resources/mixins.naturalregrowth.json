@@ -3,10 +3,12 @@
   "minVersion": "0.8",
   "package": "net.axes.naturalregrowth.mixin",
   "compatibilityLevel": "JAVA_21",
+  "plugin": "net.axes.naturalregrowth.mixin.NaturalRegrowthMixinPlugin",
   "mixins": [
     "TornadoDestructionMixin",
     "GrassSpreadMixin",
-    "AmbientDestructionMixin"
+    "AmbientDestructionMixin",
+    "RotProtectionMixin"
   ],
   "injectors": {
     "defaultRequire": 1
