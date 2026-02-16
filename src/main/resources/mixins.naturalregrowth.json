@@ -8,7 +8,11 @@
     "TornadoDestructionMixin",
     "GrassSpreadMixin",
     "AmbientDestructionMixin",
-    "RotProtectionMixin"
+    "RotProtectionMixin",
+    "ReinforcementManagerMixin",
+    "PMWUtilMixin",
+    "BurningLogMixin",
+    "FireSpreadMixin"
   ],
   "injectors": {
     "defaultRequire": 1

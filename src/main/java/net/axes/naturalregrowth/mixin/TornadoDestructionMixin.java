@@ -20,20 +20,26 @@ import java.util.Optional;
 @Mixin(Storm.class)
 public class TornadoDestructionMixin {
 
+    // --- 1. DESTRUCTION HANDLER (Updated for PMW Physics Blocks) ---
+    // Intercepts removal to place stumps or handle Dynamic Trees
     @Redirect(method = "doDamage", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;removeBlock(Lnet/minecraft/core/BlockPos;Z)Z"))
     public boolean onStormRemoveBlock(Level level, BlockPos pos, boolean isMoving) {
         // 1. DYNAMIC TREES CHECK
         if (DTLoader.isLoaded()) {
             BlockState state = level.getBlockState(pos);
             if (DTIntegration.handleStormDamage(level, pos, state)) {
-                return true;
+                return true; // DT handled it
             }
         }
 
-        // 2. VANILLA REGROWTH CHECK
+        // 2. VANILLA / PMW REGROWTH CHECK
+        // Returns true if Natural Regrowth successfully placed a stump or handled the block.
+        // This effectively "cancels" the standard PMW destruction so they don't spawn a MovingBlock entity on top of our stump.
         return NaturalRegrowthCompat.removeBlockWithRegrowth(level, pos, isMoving);
     }
 
+    // --- 2. DEBARKING HANDLER (Kept from your original code) ---
+    // Helps PMW guess the stripped variant for modded logs
     @Redirect(method = "doDamage", at = @At(value = "INVOKE", target = "Ljava/util/Map;getOrDefault(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;"))
     public Object onGetStrippedVariant(Map<Block, Block> map, Object key, Object defaultValue) {
         Object result = map.get(key);
@@ -46,14 +52,17 @@ public class TornadoDestructionMixin {
         return defaultValue;
     }
 
+    // --- 3. STUMP PROTECTION (Kept from your original code) ---
+    // Prevents PMW from "Scouring" dirt or "Stripping" logs if we already placed a stump there
     @Redirect(method = "doDamage", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;setBlockAndUpdate(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Z"))
     public boolean onStormUpdateBlock(Level level, BlockPos pos, BlockState newState) {
         if (level.getBlockState(pos).getBlock() instanceof RegrowingStumpBlock) {
-            return false;
+            return false; // Don't let storms overwrite our stumps with dirt/air
         }
         return level.setBlockAndUpdate(pos, newState);
     }
 
+    // --- 4. UTILITY METHODS (Kept) ---
     private Block tryGuessStrippedLog(Block logBlock) {
         ResourceLocation id = BuiltInRegistries.BLOCK.getKey(logBlock);
         String namespace = id.getNamespace();

@@ -3,6 +3,7 @@ package net.axes.naturalregrowth.mixin;
 import dev.protomanly.pmweather.event.GameBusEvents;
 import dev.protomanly.pmweather.weather.Storm;
 import dev.protomanly.pmweather.weather.WeatherHandler;
+import dev.protomanly.pmweather.weather.storms.StormTypes; // <--- ADDED IMPORT
 import net.axes.naturalregrowth.Config;
 import net.axes.naturalregrowth.ModBlocks;
 import net.axes.naturalregrowth.block.HealingBlock;
@@ -20,8 +21,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Constant; // <--- NEW IMPORT
-import org.spongepowered.asm.mixin.injection.ModifyConstant; // <--- NEW IMPORT
+import org.spongepowered.asm.mixin.injection.Constant;
+import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import java.util.Random;
 
@@ -29,14 +30,9 @@ import java.util.Random;
 public class AmbientDestructionMixin {
 
     // --- 1. SCALING DAMAGE DENSITY (THE FIX) ---
-    // We intercept the constant '260' (the number of loop iterations) and scale it
-    // based on the configured radius area. This ensures destruction speed feels constant
-    // regardless of size.
     @ModifyConstant(method = "onLevelTick", constant = @Constant(intValue = 260), remap = false)
     private static int modifyDamageIterations(int original) {
         int radius = Config.COMMON.windRadius.get();
-        // Math: Original * (Radius / 64)^2
-        // We use integer math: (260 * radius * radius) / (64 * 64)
         return (original * radius * radius) / 4096;
     }
 
@@ -67,7 +63,6 @@ public class AmbientDestructionMixin {
         // 1. DYNAMIC TREES BYPASS
         if (DTLoader.isLoaded()) {
             if (DTIntegration.isDTBranch(oldState)) {
-                //return level.removeBlock(pos, isMoving);
                 return true;
             }
         }
@@ -77,7 +72,8 @@ public class AmbientDestructionMixin {
         WeatherHandler handler = GameBusEvents.MANAGERS.get(level.dimension());
         if (handler != null) {
             for (Storm storm : handler.getStorms()) {
-                if (storm.stormType == 0 && storm.stage >= 3 && !storm.dead) {
+                // FIXED: Changed '0' to 'StormTypes.SUPERCELL'
+                if (storm.stormType == StormTypes.SUPERCELL && storm.stage >= 3 && !storm.dead) {
                     double distSq = storm.position.distanceToSqr(pos.getX(), pos.getY(), pos.getZ());
                     double dangerZone = storm.width + 40.0;
                     if (distSq < dangerZone * dangerZone) {
@@ -88,7 +84,7 @@ public class AmbientDestructionMixin {
             }
         }
 
-        // 3. FATAL LOGIC
+        // 3. FATAL LOGIC (Ambient Wind near Tornado)
         if (isTornadoNearby) {
             if (oldState.is(BlockTags.LOGS)) {
                 if (level.getBlockState(pos.below()).is(BlockTags.DIRT)) {
@@ -110,7 +106,7 @@ public class AmbientDestructionMixin {
             return level.removeBlock(pos, isMoving);
         }
 
-        // 4. HEALING LOGIC
+        // 4. HEALING LOGIC (Global Wind Events)
         if (oldState.is(BlockTags.LEAVES)) {
             level.setBlock(pos, ModBlocks.HEALING_LEAF.get().defaultBlockState(), 3);
             if (level.getBlockEntity(pos) instanceof HealingBlockEntity healer) {

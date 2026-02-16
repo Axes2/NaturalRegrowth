@@ -2,7 +2,7 @@
   "replace": false,
   "values": [
     "naturalregrowth:healing_log",
-    "naturalregrowth:healing_leaf",
+
     "naturalregrowth:regrowing_stump"
   ]
 }

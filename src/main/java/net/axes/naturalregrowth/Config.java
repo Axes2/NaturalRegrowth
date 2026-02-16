@@ -8,55 +8,103 @@ public class Config {
     public static final Common COMMON;
 
     public static class Common {
+        // Wind Settings
         public final ModConfigSpec.DoubleValue regrowthChance;
         public final ModConfigSpec.IntValue regrowthDelay;
-        public final ModConfigSpec.BooleanValue catchUpGrowth;
-        public final ModConfigSpec.BooleanValue instantCatchUp;
-        public final ModConfigSpec.BooleanValue dropLogItems;
         public final ModConfigSpec.BooleanValue healScouredGrass;
-        public final ModConfigSpec.DoubleValue healScouredGrassChance;
         public final ModConfigSpec.DoubleValue healingChance;
         public final ModConfigSpec.IntValue windRadius;
 
+        // Wildfire Settings (NEW SECTION)
+        public final ModConfigSpec.BooleanValue enableFireRegrowth;
+        public final ModConfigSpec.DoubleValue fireRegrowthChance;
+        public final ModConfigSpec.IntValue fireRegrowthDelay; // <--- NEW
+        public final ModConfigSpec.BooleanValue healBurntGrass;
+
+        // Shared / Performance
+        public final ModConfigSpec.DoubleValue healScouredGrassChance; // Shared rate limiter
+        public final ModConfigSpec.BooleanValue catchUpGrowth;
+        public final ModConfigSpec.BooleanValue instantCatchUp;
+        public final ModConfigSpec.BooleanValue dropLogItems;
+
         public Common(ModConfigSpec.Builder builder) {
 
-            // --- SECTION: REGROWTH SETTINGS ---
-            builder.comment("Settings controlling how fast and how often trees grow back.").push("regrowth");
+            // --- SECTION: WIND REGROWTH ---
+            builder.comment("Settings for Tornado and Wind damage regrowth.").push("wind_regrowth");
 
             regrowthDelay = builder
-                    .comment("The minimum time (in ticks) a stump must wait after creation before it can START trying to grow.",
+                    .comment("The minimum time (in ticks) a tornado stump must wait after creation before it can START growing.",
                             "6000 Ticks = 5 Minutes.",
                             "Default: 6000.")
                     .defineInRange("regrowthDelay", 6000, 0, 72000);
 
             regrowthChance = builder
-                    .comment("The chance (0.0 to 1.0) that a stump will turn into a sapling per random tick.",
-                            "Default: 0.03 (3%).")
-                    .defineInRange("regrowthChance", 0.03, 0.0, 1.0);
+                    .comment("The chance (0.0 to 1.0) that a tornado stump will turn into a sapling per random tick.",
+                            "0.025  = ~45 Minutes (Real Time)",
+                            "0.0125 = ~1.5 Hours (Real Time)",
+                            "Default: 0.0125 (1.5 Hours to full heal).")
+                    .defineInRange("regrowthChance", 0.04, 0.0, 1.0);
 
             healScouredGrass = builder
-                    .comment("If true, Vanilla Grass will naturally spread onto and heal 'Scoured Grass' from PM Weather.",
-                            "This allows tornado scars to heal over time from the edges inward.",
+                    .comment("If true, Vanilla Grass will naturally spread onto and heal 'Scoured Grass' (Tornado Dirt).",
                             "Default: true")
                     .define("healScouredGrass", true);
 
-            healScouredGrassChance = builder
-                    .comment("The probability (0.0 to 1.0) that grass will successfully spread to Scoured Grass per tick.",
-                            "Use this to slow down the healing process compared to normal dirt.",
-                            "0.1 = 10% speed of normal grass spread.",
-                            "Default: 0.5 (Slower healing).")
-                    .defineInRange("healScouredGrassChance", 0.50, 0.0, 1.0);
-
             healingChance = builder
                     .comment("The chance (0.0 to 1.0) that a wind-damaged log or leaf will heal per random tick.",
-                            "Default: 0.1 (10% chance). Higher = Faster healing.")
-                    .defineInRange("healingChance", 0.1, 0.0, 1.0);
+                            "Default: 0.2 (20% chance, or 1.5 hours ). Higher = Faster healing.")
+                    .defineInRange("healingChance", 0.2, 0.0, 1.0);
 
-            builder.pop(); // Close Regrowth
+            windRadius = builder
+                    .comment("The radius (in blocks) around the player where wind damage occurs.",
+                            "Higher values check more blocks but may impact performance.",
+                            "Default: 64")
+                    .defineInRange("windRadius", 64, 16, 256);
+
+            builder.pop(); // Close Wind
 
 
-            // --- SECTION: PERFORMANCE & DROPS ---
-            builder.comment("Settings related to items, drops, and server performance.").push("performance");
+            // --- SECTION: WILDFIRE REGROWTH ---
+            builder.comment("Settings for Wildfire damage regrowth.").push("wildfire_regrowth");
+
+            enableFireRegrowth = builder
+                    .comment("If true, trees burnt by PM Weather wildfires will turn into regrowing stumps instead of charred logs.",
+                            "Default: true")
+                    .define("enableFireRegrowth", true);
+
+            fireRegrowthDelay = builder
+                    .comment("The minimum time (in ticks) a burnt stump must wait before it can START growing.",
+                            "This prevents trees from trying to regrow while the fire is still burning.",
+                            "24000 Ticks = 20 Minutes (1 Full Minecraft Day).",
+                            "Default: 24000.")
+                    .defineInRange("fireRegrowthDelay", 24000, 0, 240000);
+
+            fireRegrowthChance = builder
+                    .comment("The chance (0.0 to 1.0) that a wildfire stump will turn into a sapling per random tick.",
+                            "--- MATHEMATICALLY ACCURATE TIMES (Based on 68s Random Tick) ---",
+                            "0.0125 = ~1.5 Hours (Real Time)",
+                            "0.006  = ~3.0 Hours (Real Time)",
+                            "0.003  = ~6.0 Hours (Real Time)",
+                            "Default: 0.006 (3 Hours to full heal).")
+                    .defineInRange("fireRegrowthChance", 0.03, 0.0, 1.0);
+
+            healBurntGrass = builder
+                    .comment("If true, Vanilla Grass will naturally spread onto and heal 'Charred Dirt' and 'Burnt Grass'.",
+                            "This allows wildfire scars to heal over time.",
+                            "Default: false")
+                    .define("healBurntGrass", true);
+
+            builder.pop(); // Close Wildfire
+
+
+            // --- SECTION: SHARED & PERFORMANCE ---
+            builder.comment("Shared settings and performance tweaks.").push("performance");
+
+            healScouredGrassChance = builder
+                    .comment("The probability (0.0 to 1.0) that grass will successfully spread to Scoured OR Charred dirt per tick.",
+                            "This controls the healing speed for both wind and fire scars.",
+                            "Default: 0.30 (Slower healing).")
+                    .defineInRange("healScouredGrassChance", 0.30, 0.0, 1.0);
 
             dropLogItems = builder
                     .comment("If true, logs destroyed by the falling tree logic will drop item stacks.",
@@ -65,22 +113,14 @@ public class Config {
 
             catchUpGrowth = builder
                     .comment("If true, stumps in unloaded chunks will simulate growth when the chunk is reloaded.",
-                            "If successful, they will turn into saplings immediately.",
                             "Default: true")
                     .define("catchUpGrowth", true);
 
             instantCatchUp = builder
                     .comment("If true, the 'Catch-Up' mechanic will force the tree to grow INSTANTLY instead of just placing a sapling.",
-                            "WARNING: This can cause lag spikes if many trees grow at once (e.g., teleporting back to a destroyed forest).",
-                            "Only enable this if you want immediate results and have a strong server/PC.",
+                            "WARNING: Can cause lag spikes.",
                             "Default: false")
                     .define("instantCatchUp", false);
-
-            windRadius = builder
-                    .comment("The radius (in blocks) around the player where wind damage occurs.",
-                            "Higher values check more blocks but may impact performance.",
-                            "Default: 64")
-                    .defineInRange("windRadius", 64, 16, 256);
 
             builder.pop(); // Close Performance
         }

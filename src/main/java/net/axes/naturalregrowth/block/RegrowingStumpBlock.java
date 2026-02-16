@@ -4,6 +4,8 @@ import net.axes.naturalregrowth.Config;
 import net.axes.naturalregrowth.block.entity.RegrowingStumpBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries; // <--- NEW IMPORT
+import net.minecraft.resources.ResourceLocation;     // <--- NEW IMPORT
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.RandomSource;
@@ -70,12 +72,68 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof RegrowingStumpBlockEntity stump) {
             long age = level.getGameTime() - stump.getCreationTime();
-            if (age < Config.COMMON.regrowthDelay.get()) return;
 
-            if (random.nextFloat() > Config.COMMON.regrowthChance.get()) return;
+            // --- UPDATED DELAY LOGIC ---
+            int requiredDelay = stump.isFireStump()
+                    ? Config.COMMON.fireRegrowthDelay.get()
+                    : Config.COMMON.regrowthDelay.get();
+
+            if (age < requiredDelay) return;
+            // ---------------------------
+
+            double chance = stump.isFireStump()
+                    ? Config.COMMON.fireRegrowthChance.get()
+                    : Config.COMMON.regrowthChance.get();
+
+            if (random.nextFloat() > chance) return;
 
             stump.performRegrowth(level, pos);
         }
+    }
+    @Override
+    protected net.minecraft.world.ItemInteractionResult useItemOn(
+            net.minecraft.world.item.ItemStack stack,
+            BlockState state,
+            net.minecraft.world.level.Level level,
+            BlockPos pos,
+            net.minecraft.world.entity.player.Player player,
+            net.minecraft.world.InteractionHand hand,
+            net.minecraft.world.phys.BlockHitResult hit) {
+
+        // Only check on Server Side
+        if (!level.isClientSide) {
+
+            // Debug Item: Stick
+            if (stack.is(net.minecraft.world.item.Items.STICK)) {
+                net.minecraft.world.level.block.entity.BlockEntity be = level.getBlockEntity(pos);
+                if (be instanceof RegrowingStumpBlockEntity stump) {
+                    long age = level.getGameTime() - stump.getCreationTime();
+
+                    int requiredDelay = stump.isFireStump()
+                            ? Config.COMMON.fireRegrowthDelay.get()
+                            : Config.COMMON.regrowthDelay.get();
+
+                    double chance = stump.isFireStump()
+                            ? Config.COMMON.fireRegrowthChance.get()
+                            : Config.COMMON.regrowthChance.get();
+
+                    String type = stump.isFireStump() ? "§cWILDFIRE" : "§9TORNADO";
+                    String status = (age >= requiredDelay) ? "§aREADY" : "§eWAITING";
+
+                    player.sendSystemMessage(net.minecraft.network.chat.Component.literal(
+                            "§l[NR DEBUG] " + type + " STUMP (" + status + "§r)\n" +
+                                    "§7Age: §f" + age + " / " + requiredDelay + " ticks\n" +
+                                    "§7Chance: §f" + (chance * 100) + "% per tick\n" +
+                                    "§7Sapling: §f" + stump.getFutureSapling().getBlock().getName().getString()
+                    ));
+
+                    return net.minecraft.world.ItemInteractionResult.SUCCESS;
+                }
+            }
+        }
+
+        // Use the new 1.21 super method
+        return super.useItemOn(stack, state, level, pos, player, hand, hit);
     }
 
     // --- HELPER METHODS ---
@@ -91,7 +149,7 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
 
         int minObservedY = startPos.getY();
 
-        if (level.getBlockState(startPos).is(BlockTags.LOGS)) {
+        if (isValidLog(level.getBlockState(startPos))) {
             queue.add(startPos);
             visited.add(startPos);
         }
@@ -117,7 +175,8 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
                         if (!visited.contains(targetPos)) {
                             BlockState targetState = level.getBlockState(targetPos);
 
-                            if (targetState.is(BlockTags.LOGS) && !(targetState.getBlock() instanceof RegrowingStumpBlock)) {
+                            // UPDATED: Now checks for Burnt Logs too
+                            if (isValidLog(targetState) && !(targetState.getBlock() instanceof RegrowingStumpBlock)) {
                                 visited.add(targetPos);
                                 queue.add(targetPos);
                             }
@@ -142,6 +201,34 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
         }
     }
 
+    // --- NEW: Helper to identify logs AND burnt logs ---
+    // --- NEW: Helper to identify logs AND burnt logs (Fixed) ---
+    private static boolean isValidLog(BlockState state) {
+        // 1. Standard Tags (Vanilla Logs)
+        if (state.is(BlockTags.LOGS)) return true;
+
+        // 2. PM Weather Special Blocks
+        ResourceLocation id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        if (id.getNamespace().equals("pmweather")) {
+            String path = id.getPath();
+
+            // Broad Check: Is it a burnt/rotted block?
+            boolean isBurntType = path.contains("charred") ||
+                    path.contains("smoldering") ||
+                    path.contains("rotted");
+
+            // Safety Check: Is it actually dirt/soil? (EXCLUDE THESE)
+            boolean isSoil = path.contains("dirt") ||
+                    path.contains("grass") ||
+                    path.contains("sand") ||
+                    path.contains("gravel");
+
+            // It's valid ONLY if it is burnt AND NOT soil
+            return isBurntType && !isSoil;
+        }
+        return false;
+    }
+
     private static boolean hasCivilizedNeighbor(ServerLevel level, BlockPos pos) {
         for (Direction dir : Direction.values()) {
             BlockState neighbor = level.getBlockState(pos.relative(dir));
@@ -154,7 +241,7 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
      * The expanded list of checks to detect player structures.
      */
     private static boolean isCivilized(BlockState state) {
-        // 1. Check Tags (Covers all wood types/colors)
+        // 1. Check Tags
         if (state.is(BlockTags.DOORS) ||
                 state.is(BlockTags.TRAPDOORS) ||
                 state.is(BlockTags.FENCES) ||
@@ -215,4 +302,5 @@ public class RegrowingStumpBlock extends Block implements EntityBlock {
         }
         level.destroyBlock(pos, drop);
     }
+
 }

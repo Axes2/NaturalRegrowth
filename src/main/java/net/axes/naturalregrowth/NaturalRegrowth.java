@@ -9,6 +9,9 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import org.slf4j.Logger;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.axes.naturalregrowth.command.NRCommands; // Your new class
 
 @Mod(NaturalRegrowth.MODID)
 public class NaturalRegrowth {
@@ -24,6 +27,7 @@ public class NaturalRegrowth {
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
         modEventBus.addListener(this::commonSetup);
         net.axes.naturalregrowth.compat.dt.DTLoader.init(modEventBus); //NEW DT Compatiblity
+        NeoForge.EVENT_BUS.addListener(this::registerCommands);
 
         LOGGER.info("Natural Regrowth loaded successfully.");
     }
@@ -39,5 +43,8 @@ public class NaturalRegrowth {
             fireBlock.setFlammable(ModBlocks.HEALING_LEAF.get(), 30, 60);
             fireBlock.setFlammable(ModBlocks.REGROWING_STUMP.get(), 5, 5);
         });
+    }
+    private void registerCommands(RegisterCommandsEvent event) {
+        NRCommands.register(event.getDispatcher());
     }
 }
