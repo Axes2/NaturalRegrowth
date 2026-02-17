@@ -17,6 +17,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.Optional;
+
 // FIX: Changed from 'class' to 'interface' because the target is an Interface.
 @Mixin(targets = "dev.protomanly.pmweather.block.interfaces.BurningBlockInterface")
 public interface FireSpreadMixin {
@@ -48,14 +50,43 @@ public interface FireSpreadMixin {
         }
     }
 
-    // FIX: Helper methods in interfaces should be static (Java 21 supports private static interface methods)
+    // FIX: Helper methods in interfaces should be static
     private static Block getSaplingFromState(BlockState logState) {
         ResourceLocation id = BuiltInRegistries.BLOCK.getKey(logState.getBlock());
         String namespace = id.getNamespace();
-        String path = id.getPath().replace("stripped_", "").replace("_log", "").replace("_wood", "");
+        String path = id.getPath();
 
-        ResourceLocation saplingId = ResourceLocation.fromNamespaceAndPath(namespace, path + "_sapling");
+        // 1. Clean Prefix (e.g. "stripped_oak_log" -> "oak_log")
+        if (path.startsWith("stripped_")) {
+            path = path.substring(9);
+        }
 
-        return BuiltInRegistries.BLOCK.getOptional(saplingId).orElse(Blocks.OAK_SAPLING);
+        // 2. Identify and Clean Suffix
+        // We use 'endsWith' to be precise, preventing accidental mid-string replacements
+        String baseName = path;
+        String[] logSuffixes = { "_log", "_wood", "_stem", "_hyphae", "_block" };
+
+        for (String suffix : logSuffixes) {
+            if (path.endsWith(suffix)) {
+                baseName = path.substring(0, path.length() - suffix.length());
+                break; // Stop after first match to avoid over-stripping
+            }
+        }
+
+        // 3. Smart Guessing (Try multiple common sapling names)
+        String[] saplingSuffixes = { "_sapling", "_fungus", "_propagule" };
+
+        for (String suffix : saplingSuffixes) {
+            ResourceLocation candidateId = ResourceLocation.fromNamespaceAndPath(namespace, baseName + suffix);
+
+            // Check if this guess actually exists in the game registry
+            Optional<Block> result = BuiltInRegistries.BLOCK.getOptional(candidateId);
+            if (result.isPresent()) {
+                return result.get();
+            }
+        }
+
+        // 4. Last Resort: Default to Oak if nothing matched
+        return Blocks.OAK_SAPLING;
     }
 }

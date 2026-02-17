@@ -3,7 +3,7 @@ package net.axes.naturalregrowth.mixin;
 import dev.protomanly.pmweather.event.GameBusEvents;
 import dev.protomanly.pmweather.weather.Storm;
 import dev.protomanly.pmweather.weather.WeatherHandler;
-import dev.protomanly.pmweather.weather.storms.StormTypes; // <--- ADDED IMPORT
+import dev.protomanly.pmweather.weather.storms.StormTypes;
 import net.axes.naturalregrowth.Config;
 import net.axes.naturalregrowth.ModBlocks;
 import net.axes.naturalregrowth.block.HealingBlock;
@@ -29,22 +29,27 @@ import java.util.Random;
 @Mixin(GameBusEvents.class)
 public class AmbientDestructionMixin {
 
-    // --- 1. SCALING DAMAGE DENSITY (THE FIX) ---
-    @ModifyConstant(method = "onLevelTick", constant = @Constant(intValue = 260), remap = false)
+    // --- 1. SCALING DAMAGE DENSITY (FIXED) ---
+    // UPDATED: Changed from 260 to 200 to match PMWeather 0.16.0
+    @ModifyConstant(method = "onLevelTick", constant = @Constant(intValue = 200), remap = false)
     private static int modifyDamageIterations(int original) {
         int radius = Config.COMMON.windRadius.get();
+        // 64 * 64 = 4096. If radius is default (64), this returns original (200).
         return (original * radius * radius) / 4096;
     }
 
     // --- 2. CONFIGURABLE RADIUS HOOK ---
+    // This targets "PMWeather.RANDOM.nextInt(-64, 65)"
     @Redirect(
             method = "onLevelTick",
             at = @At(value = "INVOKE", target = "Ljava/util/Random;nextInt(II)I"),
             remap = false
     )
     private static int onNextInt(Random instance, int origin, int bound) {
+        // We catch the specific call where PMWeather calculates the offset
         if (origin == -64 && bound == 65) {
             int radius = Config.COMMON.windRadius.get();
+            // Scale the random range to match our config
             return instance.nextInt(-radius, radius + 1);
         }
         return instance.nextInt(origin, bound);

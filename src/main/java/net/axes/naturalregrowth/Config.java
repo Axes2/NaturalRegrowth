@@ -40,9 +40,7 @@ public class Config {
 
             regrowthChance = builder
                     .comment("The chance (0.0 to 1.0) that a tornado stump will turn into a sapling per random tick.",
-                            "0.025  = ~45 Minutes (Real Time)",
-                            "0.0125 = ~1.5 Hours (Real Time)",
-                            "Default: 0.0125 (1.5 Hours to full heal).")
+                            "Default: 0.04 (1.5 Hours to full heal).")
                     .defineInRange("regrowthChance", 0.04, 0.0, 1.0);
 
             healScouredGrass = builder
@@ -81,11 +79,8 @@ public class Config {
 
             fireRegrowthChance = builder
                     .comment("The chance (0.0 to 1.0) that a wildfire stump will turn into a sapling per random tick.",
-                            "--- MATHEMATICALLY ACCURATE TIMES (Based on 68s Random Tick) ---",
-                            "0.0125 = ~1.5 Hours (Real Time)",
-                            "0.006  = ~3.0 Hours (Real Time)",
-                            "0.003  = ~6.0 Hours (Real Time)",
-                            "Default: 0.006 (3 Hours to full heal).")
+                            "0.03 = ~2 Hours (Real Time)",
+                            "Default: 0.03 (2-3 Hours to full heal).")
                     .defineInRange("fireRegrowthChance", 0.03, 0.0, 1.0);
 
             healBurntGrass = builder
@@ -102,8 +97,8 @@ public class Config {
 
             healScouredGrassChance = builder
                     .comment("The probability (0.0 to 1.0) that grass will successfully spread to Scoured OR Charred dirt per tick.",
-                            "This controls the healing speed for both wind and fire scars.",
-                            "Default: 0.30 (Slower healing).")
+                            "This controls the healing speed for both tornado and fire scars.",
+                            "Default: 0.30 (Slower healing, 2-3 hours for full heal).")
                     .defineInRange("healScouredGrassChance", 0.30, 0.0, 1.0);
 
             dropLogItems = builder

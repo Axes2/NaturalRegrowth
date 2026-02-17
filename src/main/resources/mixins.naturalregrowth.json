@@ -12,7 +12,8 @@
     "ReinforcementManagerMixin",
     "PMWUtilMixin",
     "BurningLogMixin",
-    "FireSpreadMixin"
+    "FireSpreadMixin",
+    "CharredLogMixin"
   ],
   "injectors": {
     "defaultRequire": 1
