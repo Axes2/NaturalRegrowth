@@ -13,7 +13,8 @@
     "PMWUtilMixin",
     "BurningLogMixin",
     "FireSpreadMixin",
-    "CharredLogMixin"
+    "CharredLogMixin",
+    "BlockDataHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

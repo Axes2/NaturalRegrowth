@@ -34,7 +34,7 @@ public class TornadoDestructionMixin {
 
         // 2. VANILLA / PMW REGROWTH CHECK
         // Returns true if Natural Regrowth successfully placed a stump or handled the block.
-        // This effectively "cancels" the standard PMW destruction so they don't spawn a MovingBlock entity on top of our stump.
+        // This "cancels" the standard PMW destruction so they don't spawn a MovingBlock entity on top of the stump.
         return NaturalRegrowthCompat.removeBlockWithRegrowth(level, pos, isMoving);
     }
 
@@ -62,7 +62,7 @@ public class TornadoDestructionMixin {
         return level.setBlockAndUpdate(pos, newState);
     }
 
-    // --- 4. UTILITY METHODS (Kept) ---
+    // --- 4. UTILITY METHODS ---
     private Block tryGuessStrippedLog(Block logBlock) {
         ResourceLocation id = BuiltInRegistries.BLOCK.getKey(logBlock);
         String namespace = id.getNamespace();

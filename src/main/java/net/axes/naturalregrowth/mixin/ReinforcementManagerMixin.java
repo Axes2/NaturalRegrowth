@@ -11,6 +11,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ReinforcementManager.class)
 public class ReinforcementManagerMixin {
 
+
+    /* This class has been depreciated since 0.16.4. In 0.16.4, PMWeather shifted to a Chunk Attachment system.
+    Now, the data is handed off to a new class called BlockDataHandler. This class is currently being saved for compatiblity with older versions.
+     */
+
+
+
+
+
     // This prevents PMWeather from:
     // a) Regrowing trees on its own
     // b) DELETING saved data (because it cleans up data for blocks that aren't Rotted Logs)
