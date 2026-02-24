@@ -83,7 +83,7 @@ public class NaturalRegrowthCompat {
                 return false;
             }
 
-            // Now it is safe to check for soil keywords
+            //Check for soil keywords
             return path.contains("dirt") ||
                     path.contains("grass") ||
                     path.contains("scour") ||

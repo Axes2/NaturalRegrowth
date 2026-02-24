@@ -14,7 +14,7 @@ public class PMWUtilMixin {
 
     /**
      * PM Weather uses this method to check if a tree should "Rot".
-     * We cancel it to prevent Rotted Logs from appearing entirely.
+     * Cancel it to prevent Rotted Logs from appearing entirely.
      */
 
     // Method 1: The recursive check

@@ -62,7 +62,7 @@ public interface FireSpreadMixin {
         }
 
         // 2. Identify and Clean Suffix
-        // We use 'endsWith' to be precise, preventing accidental mid-string replacements
+        // Use 'endsWith' to be precise, preventing accidental mid-string replacements
         String baseName = path;
         String[] logSuffixes = { "_log", "_wood", "_stem", "_hyphae", "_block" };
 

@@ -11,7 +11,7 @@ import net.minecraft.world.level.block.state.BlockState;
 public class RegrowingStumpRenderer implements BlockEntityRenderer<RegrowingStumpBlockEntity> {
 
     public RegrowingStumpRenderer(BlockEntityRendererProvider.Context context) {
-        // Constructor needed for registration
+        // Constructor needed
     }
 
     @Override
@@ -33,5 +33,11 @@ public class RegrowingStumpRenderer implements BlockEntityRenderer<RegrowingStum
         );
 
         poseStack.popPose();
+    }
+
+    // --- ADDED TO PREVENT DISTANCE CULLING ---
+    @Override
+    public int getViewDistance() {
+        return 512; // The default is 64. 512 supports 32 chunk render distances.
     }
 }
