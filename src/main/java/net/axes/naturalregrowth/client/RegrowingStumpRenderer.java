@@ -23,7 +23,7 @@ public class RegrowingStumpRenderer implements BlockEntityRenderer<RegrowingStum
         poseStack.pushPose();
 
         // 3. Render the Block
-        // We use the Minecraft BlockDispatcher to render the "Mimic" state exactly as if it were placed in the world.
+        // Use the Minecraft BlockDispatcher to render the "Mimic" state exactly as if it were placed in the world.
         Minecraft.getInstance().getBlockRenderer().renderSingleBlock(
                 mimicState,
                 poseStack,

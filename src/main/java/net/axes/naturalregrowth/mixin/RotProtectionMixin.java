@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(BranchBlock.class)
 public class RotProtectionMixin {
 
-    // We target "rot", which is the void method that actually breaks the block.
+    // Target "rot", which is the void method that actually breaks the block.
     // Unlike "checkForRot", this method is NOT abstract, so we can inject into it safely.
     @Inject(method = "rot", at = @At("HEAD"), cancellable = true, remap = false)
     public void onRot(LevelAccessor level, BlockPos pos, CallbackInfo ci) {

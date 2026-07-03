@@ -24,6 +24,7 @@ public class Config {
         // Shared / Performance
         public final ModConfigSpec.DoubleValue healScouredGrassChance; // Shared rate limiter
         public final ModConfigSpec.BooleanValue catchUpGrowth;
+        public final ModConfigSpec.DoubleValue floralRegrowthChance; // <--- NEW
         public final ModConfigSpec.BooleanValue instantCatchUp;
         public final ModConfigSpec.BooleanValue dropLogItems;
 
@@ -44,9 +45,14 @@ public class Config {
                     .defineInRange("regrowthChance", 0.04, 0.0, 1.0);
 
             healScouredGrass = builder
-                    .comment("If true, Vanilla Grass will naturally spread onto and heal 'Scoured Grass' (Tornado Dirt).",
+                    .comment("If true, Vanilla Grass will naturally spread onto and heal 'Scoured Grass'.",
                             "Default: true")
                     .define("healScouredGrass", true);
+
+            floralRegrowthChance = builder
+                    .comment("The chance (0.0 to 1.0) that tall grass or flowers will sprout when a PMWeather dirt scar is healed.",
+                            "Default: 0.15 (15% chance). Lower this to reduce flora density.")
+                    .defineInRange("floralRegrowthChance", 0.15, 0.0, 1.0);
 
             healingChance = builder
                     .comment("The chance (0.0 to 1.0) that a wind-damaged log or leaf will heal per random tick.",
@@ -55,7 +61,7 @@ public class Config {
 
             windRadius = builder
                     .comment("The radius (in blocks) around the player where wind damage occurs.",
-                            "Higher values check more blocks but may impact performance.",
+                            "Higher values create more destructive wind events but check more blocks. May impact performance.",
                             "Default: 64")
                     .defineInRange("windRadius", 64, 16, 256);
 
