@@ -31,7 +31,7 @@ public interface FireSpreadMixin {
 
         // Case A: Burning a normal Log
         if (oldState.is(BlockTags.LOGS)) {
-            saplingToSave = getSaplingFromState(oldState);
+            saplingToSave = net.axes.naturalregrowth.util.TreeUtils.getSaplingFromLog(oldState).getBlock();
         }
 
         // Case B: Burning an existing Regrowing Stump
@@ -50,43 +50,4 @@ public interface FireSpreadMixin {
         }
     }
 
-    // FIX: Helper methods in interfaces should be static
-    private static Block getSaplingFromState(BlockState logState) {
-        ResourceLocation id = BuiltInRegistries.BLOCK.getKey(logState.getBlock());
-        String namespace = id.getNamespace();
-        String path = id.getPath();
-
-        // 1. Clean Prefix (e.g. "stripped_oak_log" -> "oak_log")
-        if (path.startsWith("stripped_")) {
-            path = path.substring(9);
-        }
-
-        // 2. Identify and Clean Suffix
-        // Use 'endsWith' to be precise, preventing accidental mid-string replacements
-        String baseName = path;
-        String[] logSuffixes = { "_log", "_wood", "_stem", "_hyphae", "_block" };
-
-        for (String suffix : logSuffixes) {
-            if (path.endsWith(suffix)) {
-                baseName = path.substring(0, path.length() - suffix.length());
-                break; // Stop after first match to avoid over-stripping
-            }
-        }
-
-        // 3. Smart Guessing (Try multiple common sapling names)
-        String[] saplingSuffixes = { "_sapling", "_fungus", "_propagule" };
-
-        for (String suffix : saplingSuffixes) {
-            ResourceLocation candidateId = ResourceLocation.fromNamespaceAndPath(namespace, baseName + suffix);
-
-            // Check if this guess actually exists in the game registry
-            Optional<Block> result = BuiltInRegistries.BLOCK.getOptional(candidateId);
-            if (result.isPresent()) {
-                return result.get();
-            }
-        }
-
-        // 4. Last Resort: Default to Oak if nothing matched
-        return Blocks.OAK_SAPLING;
-    }
 }

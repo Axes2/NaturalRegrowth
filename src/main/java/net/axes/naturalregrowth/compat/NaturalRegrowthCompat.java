@@ -215,7 +215,16 @@ public class NaturalRegrowthCompat {
                 for (int z = -radius; z <= radius; z++) {
                     BlockPos p = topPos.offset(x, y, z);
                     BlockState s = level.getBlockState(p);
-                    if (s.is(BlockTags.LEAVES) && !s.getValue(LeavesBlock.PERSISTENT)) return true;
+
+                    // 1. Check if it's a leaf block
+                    if (s.is(BlockTags.LEAVES)) {
+                        // 2. SAFELY check if it has the persistent property before reading it.
+                        // If it doesn't have the property (like Coconut Fronds), we assume it's a natural leaf.
+                        if (!s.hasProperty(LeavesBlock.PERSISTENT) || !s.getValue(LeavesBlock.PERSISTENT)) {
+                            return true;
+                        }
+                    }
+
                     if (s.is(Blocks.VINE) || s.is(Blocks.MANGROVE_LEAVES)) return true;
                 }
             }
@@ -278,12 +287,6 @@ public class NaturalRegrowthCompat {
     }
 
     private static BlockState getSaplingFromLog(BlockState logState) {
-        ResourceLocation logId = BuiltInRegistries.BLOCK.getKey(logState.getBlock());
-        String namespace = logId.getNamespace();
-        String path = logId.getPath().replace("stripped_", "");
-        String saplingPath = path.replace("_log", "_sapling").replace("_wood", "_sapling");
-        if (!saplingPath.endsWith("_sapling")) saplingPath = saplingPath + "_sapling";
-        ResourceLocation saplingId = ResourceLocation.fromNamespaceAndPath(namespace, saplingPath);
-        return BuiltInRegistries.BLOCK.getOptional(saplingId).map(Block::defaultBlockState).orElse(Blocks.OAK_SAPLING.defaultBlockState());
+        return TreeUtils.getSaplingFromLog(logState);
     }
 }

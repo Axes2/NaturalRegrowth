@@ -59,4 +59,37 @@ public class TreeUtils {
 
         return null;
     }
+    public static BlockState getSaplingFromLog(BlockState logState) {
+        ResourceLocation id = BuiltInRegistries.BLOCK.getKey(logState.getBlock());
+        String namespace = id.getNamespace();
+        String path = id.getPath();
+
+        // 1. Clean Prefix
+        if (path.startsWith("stripped_")) {
+            path = path.substring(9);
+        }
+
+        // 2. Clean Suffix
+        String baseName = path;
+        String[] logSuffixes = { "_log", "_wood", "_stem", "_hyphae", "_block" };
+        for (String suffix : logSuffixes) {
+            if (path.endsWith(suffix)) {
+                baseName = path.substring(0, path.length() - suffix.length());
+                break;
+            }
+        }
+
+        // 3. Smart Guessing (The empty string "" catches cases like "coconut")
+        String[] saplingSuffixes = { "_sapling", "_fungus", "_propagule", "" };
+        for (String suffix : saplingSuffixes) {
+            ResourceLocation candidateId = ResourceLocation.fromNamespaceAndPath(namespace, baseName + suffix);
+            Optional<Block> result = BuiltInRegistries.BLOCK.getOptional(candidateId);
+            if (result.isPresent()) {
+                return result.get().defaultBlockState();
+            }
+        }
+
+        // 4. Fallback
+        return Blocks.OAK_SAPLING.defaultBlockState();
+    }
 }
