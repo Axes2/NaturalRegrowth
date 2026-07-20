@@ -94,6 +94,15 @@ versionRange="[1.0,)"
 ordering="AFTER"
 side="BOTH"
 
+# Incompatible: pmwtrees also intercepts DT branch burning; running both causes double-replace conflicts
+[[dependencies.${mod_id}]]
+modId="pmwtrees"
+type="incompatible"
+reason="Natural Regrowth includes Dynamic Trees wildfire branch support. Do not install pmwtrees alongside this mod."
+versionRange="*"
+ordering="NONE"
+side="BOTH"
+
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't
 # stop your mod loading on the server for example.

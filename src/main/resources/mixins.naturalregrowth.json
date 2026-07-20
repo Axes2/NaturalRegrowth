@@ -14,7 +14,9 @@
     "BurningLogMixin",
     "FireSpreadMixin",
     "CharredLogMixin",
-    "BlockDataHandlerMixin"
+    "BlockDataHandlerMixin",
+    "DTBurnMixin",
+    "DTAshCleanupMixin"
   ],
   "injectors": {
     "defaultRequire": 1

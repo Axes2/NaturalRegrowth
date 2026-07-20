@@ -118,12 +118,13 @@ configurations {
 }
 
 dependencies {
-    //implementation files('libs/pmweather-0.15.3-1.21.1-alpha.jar')
-    // 1. Add Dynamic Trees as Compile Only (so code compiles, but mod isn't installed)
+    // Dynamic Trees: soft dependency — compile against API; load at runtime for local testing only
     compileOnly files("libs/dynamictrees-neoforge-1.21.1-1.6.0-BETA04.jar")
+    localRuntime files("libs/dynamictrees-neoforge-1.21.1-1.6.0-BETA04.jar")
 
-// 2. Add everything else in libs as normal, but EXCLUDE Dynamic Trees
-    implementation fileTree(dir: 'libs', include: '*.jar', exclude: 'dynamictrees*.jar*/')
+    // Everything else in libs as normal, excluding Dynamic Trees
+    implementation fileTree(dir: 'libs', include: '*.jar', exclude: 'dynamictrees*.jar')
+    //, exclude: 'dynamictrees*.jar' Put after implementation to disable for testing
 
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
