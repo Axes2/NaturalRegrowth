@@ -54,9 +54,14 @@ public class DoomedSoilBlock extends SoilBlock {
         BlockEntity be = level.getBlockEntity(pos);
         if (!(be instanceof DoomedSoilBlockEntity doomed)) return;
 
+        // Fire-doomed trees wait for wildfire delay/chance; storm-doomed use wind settings.
+        if (doomed.isFireDoomed() && !Config.COMMON.enableFireRegrowth.get()) {
+            return;
+        }
+
         long age = level.getGameTime() - doomed.getCreationTime();
-        int delay = Config.COMMON.regrowthDelay.get();
-        double chance = Config.COMMON.regrowthChance.get();
+        int delay = doomed.getRequiredDelay();
+        double chance = doomed.getRegrowthChance();
 
         if (age < delay) return;
         if (random.nextFloat() > chance) return;

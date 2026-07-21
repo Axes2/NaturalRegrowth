@@ -20,6 +20,7 @@ public class DoomedSoilBlockEntity extends BlockEntity {
     private ResourceLocation speciesName;
     private long creationTime = 0L;
     private boolean executed = false;
+    private boolean isFireDoomed = false;
 
     public DoomedSoilBlockEntity(BlockPos pos, BlockState blockState) {
         super(DTRegistries.DOOMED_SOIL_BE.get(), pos, blockState);
@@ -36,9 +37,18 @@ public class DoomedSoilBlockEntity extends BlockEntity {
     }
 
     private void performCatchUpLogic() {
+        // Fire-doomed trees only catch up when fire regrowth is enabled.
+        if (this.isFireDoomed && !Config.COMMON.enableFireRegrowth.get()) {
+            return;
+        }
+        // No timer started (or invalid data) — do not treat as ancient.
+        if (this.creationTime <= 0L || this.executed) {
+            return;
+        }
+
         long currentTime = level.getGameTime();
         long age = currentTime - this.creationTime;
-        long delay = Config.COMMON.regrowthDelay.get();
+        long delay = getRequiredDelay();
 
         // 1. If we haven't waited long enough, do nothing.
         if (age < delay) return;
@@ -51,13 +61,10 @@ public class DoomedSoilBlockEntity extends BlockEntity {
         int randomTickSpeed = level.getGameRules().getInt(GameRules.RULE_RANDOMTICKING);
         if (randomTickSpeed <= 0) return;
 
-        // 4. The Math: Calculate probability of success over N trials
-        // (Copied 1:1 from RegrowingStumpBlockEntity for consistency)
+        // 4. Same probability model as RegrowingStumpBlockEntity
         double chanceToBePicked = (double) randomTickSpeed / 4096.0;
-        double chanceToGrow = Config.COMMON.regrowthChance.get();
+        double chanceToGrow = getRegrowthChance();
         double p = chanceToBePicked * chanceToGrow;
-
-        // probability = 1 - (chance_to_fail ^ number_of_tries)
         double probOfSuccess = 1.0 - Math.pow(1.0 - p, eligibleTicks);
 
         // 5. Roll the die
@@ -79,8 +86,39 @@ public class DoomedSoilBlockEntity extends BlockEntity {
         this.setChanged();
     }
 
+    /** Used by /nr ready to backdate the timer past the configured delay. */
+    public void setCreationTime(long time) {
+        this.creationTime = time;
+        this.setChanged();
+    }
+
+    public boolean hasExecuted() {
+        return executed;
+    }
+
+    public void setIsFireDoomed(boolean isFire) {
+        this.isFireDoomed = isFire;
+        this.setChanged();
+    }
+
+    public boolean isFireDoomed() {
+        return isFireDoomed;
+    }
+
     public long getCreationTime() {
         return creationTime;
+    }
+
+    public int getRequiredDelay() {
+        return isFireDoomed
+                ? Config.COMMON.fireRegrowthDelay.get()
+                : Config.COMMON.regrowthDelay.get();
+    }
+
+    public double getRegrowthChance() {
+        return isFireDoomed
+                ? Config.COMMON.fireRegrowthChance.get()
+                : Config.COMMON.regrowthChance.get();
     }
 
     public void performRegrowth(ServerLevel level, BlockPos pos) {
@@ -99,6 +137,7 @@ public class DoomedSoilBlockEntity extends BlockEntity {
         if (speciesName != null) tag.putString("Species", speciesName.toString());
         tag.putLong("CreationTime", creationTime);
         tag.putBoolean("Executed", executed);
+        tag.putBoolean("IsFireDoomed", isFireDoomed);
     }
 
     @Override
@@ -107,6 +146,7 @@ public class DoomedSoilBlockEntity extends BlockEntity {
         if (tag.contains("Species")) speciesName = ResourceLocation.parse(tag.getString("Species"));
         creationTime = tag.getLong("CreationTime");
         executed = tag.getBoolean("Executed");
+        if (tag.contains("IsFireDoomed")) isFireDoomed = tag.getBoolean("IsFireDoomed");
     }
 
     @Nullable

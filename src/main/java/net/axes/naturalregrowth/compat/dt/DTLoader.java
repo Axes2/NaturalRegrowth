@@ -9,6 +9,8 @@ public class DTLoader {
     public static void init(IEventBus bus) {
         if (ModList.get().isLoaded(DT_MOD_ID)) {
             DTRegistries.register(bus);
+            // Wildfire branch blocks (smoldering/charred/rotted) — soft-loaded with DT
+            net.axes.naturalregrowth.compat.dt.fire.DTFireBootstrap.init(bus);
         }
     }
 

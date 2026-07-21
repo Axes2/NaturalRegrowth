@@ -108,7 +108,7 @@ public class Config {
                     .defineInRange("healScouredGrassChance", 0.30, 0.0, 1.0);
 
             dropLogItems = builder
-                    .comment("If true, logs destroyed by the falling tree logic will drop item stacks.",
+                    .comment("If true, logs destroyed by the falling tree logic (vanilla stumps and Dynamic Trees doomed soil) will drop item stacks.",
                             "Default: false")
                     .define("dropLogItems", false);
 

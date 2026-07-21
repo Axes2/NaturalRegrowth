@@ -22,14 +22,14 @@ public class NaturalRegrowthMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        // --- GUARD: RotProtectionMixin ---
-        // We check if the mixin being applied is our RotProtectionMixin.
-        // If it is, we ONLY allow it if "dynamictrees" is currently loaded.
-        if (mixinClassName.endsWith("RotProtectionMixin")) {
+        // DT-only mixins: only apply when Dynamic Trees is present
+        if (mixinClassName.endsWith("RotProtectionMixin")
+                || mixinClassName.endsWith("DTBurnMixin")
+                || mixinClassName.endsWith("DTAshCleanupMixin")) {
             return LoadingModList.get().getModFileById("dynamictrees") != null;
         }
 
-        // All other mixins (Vanilla compatibility) are always allowed.
+        // All other mixins (Vanilla / PMWeather compatibility) are always allowed.
         return true;
     }
 
