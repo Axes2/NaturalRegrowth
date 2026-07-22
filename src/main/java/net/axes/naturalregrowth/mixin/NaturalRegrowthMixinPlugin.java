@@ -25,7 +25,8 @@ public class NaturalRegrowthMixinPlugin implements IMixinConfigPlugin {
         // DT-only mixins: only apply when Dynamic Trees is present
         if (mixinClassName.endsWith("RotProtectionMixin")
                 || mixinClassName.endsWith("DTBurnMixin")
-                || mixinClassName.endsWith("DTAshCleanupMixin")) {
+                || mixinClassName.endsWith("DTAshCleanupMixin")
+                || mixinClassName.endsWith("DTAshPlacementMixin")) {
             return LoadingModList.get().getModFileById("dynamictrees") != null;
         }
 
