@@ -16,7 +16,8 @@
     "CharredLogMixin",
     "BlockDataHandlerMixin",
     "DTBurnMixin",
-    "DTAshCleanupMixin"
+    "DTAshCleanupMixin",
+    "DTAshPlacementMixin"
   ],
   "injectors": {
     "defaultRequire": 1
